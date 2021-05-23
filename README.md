@@ -1,4 +1,4 @@
-*Musclesense Workbench* is a *Linux* software application for *Musclesense*, as defined by the following article:
+*Musclesense Workbench* is a *Python3* software application for *Musclesense*, as defined by the following article:
 
 *[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics. 2021 Apr;19(2):379-383.](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
 
@@ -8,7 +8,7 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 
 ![image](https://user-images.githubusercontent.com/12815964/119245568-31236080-bb72-11eb-8e33-fccad5aab35f.png)
 
-A pure python3 application, it comprises tools to help with the processing and analysis of 3-point Dixon MRI of the lower limbs. The following are prerequisites:   
+A pure python3 application, it has been designed to help with the processing and analysis of 3-point Dixon MRI of the lower limbs. The following are prerequisites:   
   
 *itk-snap  
 Python3  
