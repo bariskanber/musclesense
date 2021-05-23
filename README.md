@@ -22,3 +22,5 @@ python3 -m pip install scikit-learn
 python3 -m pip install tensorflow  
 python3 -m pip install keras  
 python3 -m pip install scikit-image*  
+
+Includes icons by [Icon8](https://icons8.com)
