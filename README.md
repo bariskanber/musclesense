@@ -1,15 +1,10 @@
-*Musclesense Workbench* is a software application built around *Musclesense*, introduced by the following article:
-
-*[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics. 2021 Apr;19(2):379-383.](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
-
-A pure python3 application, it has been designed to support the processing and analysis of 3-point Dixon MRI of the lower limbs. 
+*Musclesense Workbench* is a software application that supports the processing and analysis of 3-point Dixon MRI of the lower limbs. 
 
 The software was produced as part of the project ***“Towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods”***. 
 
 Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London Hospitals NHS Foundation Trust, the project aims to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
 
-![image](https://user-images.githubusercontent.com/12815964/119245568-31236080-bb72-11eb-8e33-fccad5aab35f.png)
-
+### Installation
 The following are prerequisites:   
   
 *itk-snap  
@@ -25,8 +20,10 @@ python3 -m pip install tensorflow
 python3 -m pip install keras  
 python3 -m pip install scikit-image*  
 
-Includes icons by [Icon8](https://icons8.com)
+### Acknowledgements
+The software includes icons by [Icon8](https://icons8.com)
 
+### Starting Musclesense Workbench
 `python3 mmseg_app.py` to run
 
 ### Troubleshooting
