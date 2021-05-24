@@ -39,6 +39,10 @@ To run the workbench, type `python3 mmseg_app.py` from the installation director
 1.  `assert(data['image_dim_ordering']=="th") KeyError: 'image_dim_ordering'`
 Solution: add `"image_dim_ordering": "th"` to `~/.keras/keras.json`
 
+### Notices
+Musclesense the algorithm, and Musclesense Workbench should not be used for the diagnosis or treatment of patients.
+
 Includes icons by [Icon8](https://icons8.com)
 
+### Enquiries
 Please submit any enquiries to <b.kanber@ucl.ac.uk>
