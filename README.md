@@ -20,7 +20,7 @@ Download a [release version](https://github.com/bariskanber/musclesenseworkbench
 
 The following are prerequisites (where appropriate with example commands):   
   
-*itk-snap  
+*[itk-snap](http://www.itksnap.org)  
 Python3  
 python3 -m pip install numpy  
 python3 -m pip install nibabel  
@@ -36,7 +36,7 @@ python3 -m pip install scikit-image*
 To run the workbench, type `python3 mmseg_app.py` from the installation directory
 
 ### Troubleshooting
-1.  Error: `KeyError: 'image_dim_ordering'` Solution: add `"image_dim_ordering": "th"` to `~/.keras/keras.json`
+1.  Symptom: `KeyError: 'image_dim_ordering'` Solution: add `"image_dim_ordering": "th"` to `~/.keras/keras.json`
 
 ### Notices
 Musclesense the algorithm, and Musclesense Workbench should not be used for the diagnosis or treatment of patients.
