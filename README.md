@@ -16,15 +16,15 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 
 ### Getting started
 
-Download a [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and install at a location of your choice on your Linux workstation. Please do not just clone or download the GitHub repository as you will be missing the required model weights.
+Download a [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and save at a location of your choice on your Linux workstation. The source code and the model weights should be saved in the same directory. Please do not just clone or download the repository as you will be missing the required model weights.
 
-The following are prerequisites:   
+The following are prerequisites (where appropriate with example commands):   
   
 *itk-snap  
 Python3  
 python3 -m pip install numpy  
 python3 -m pip install nibabel  
-sudo apt install python3-tk (alternatively, sudo yum install)  
+sudo apt install python3-tk  
 python3 -m pip install matplotlib  
 python3 -m pip install pandas  
 python3 -m pip install joblib  
@@ -36,8 +36,7 @@ python3 -m pip install scikit-image*
 To run the workbench, type `python3 mmseg_app.py` from the installation directory
 
 ### Troubleshooting
-1.  `assert(data['image_dim_ordering']=="th") KeyError: 'image_dim_ordering'`
-Solution: add `"image_dim_ordering": "th"` to `~/.keras/keras.json`
+1.  Error: `KeyError: 'image_dim_ordering'` Solution: add `"image_dim_ordering": "th"` to `~/.keras/keras.json`
 
 ### Notices
 Musclesense the algorithm, and Musclesense Workbench should not be used for the diagnosis or treatment of patients.
