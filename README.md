@@ -29,8 +29,8 @@ python3 -m pip install matplotlib
 python3 -m pip install pandas  
 python3 -m pip install joblib  
 python3 -m pip install scikit-learn  
-python3 -m pip install keras  
 python3 -m pip install tensorflow  
+python3 -m pip install keras  
 python3 -m pip install scikit-image*  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
