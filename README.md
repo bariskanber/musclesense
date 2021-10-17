@@ -4,7 +4,7 @@
 
 *[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics, 2021](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
 
-A pure python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs. 
+A python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs. 
 
 ### Background
 
