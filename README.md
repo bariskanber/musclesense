@@ -6,7 +6,7 @@
 
 A python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs.
 
-We are currently presenting Musclesense workbench at the MYO-MRI 2021 conference, as of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed.![image](https://user-images.githubusercontent.com/12815964/137637034-e9887e9b-101f-4bbe-ab88-c8a25e17441b.png)
+UPDATE: We are currently presenting Musclesense workbench at the MYO-MRI 2021 conference. As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please email b.kanber@ucl.ac.uk to get involved.
 
 ### Background
 
