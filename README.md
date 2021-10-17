@@ -4,7 +4,9 @@
 
 *[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics, 2021](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
 
-A python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs. 
+A python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs.
+
+We are currently presenting Musclesense workbench at the MYO-MRI 2021 conference, as of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed.![image](https://user-images.githubusercontent.com/12815964/137637034-e9887e9b-101f-4bbe-ab88-c8a25e17441b.png)
 
 ### Background
 
