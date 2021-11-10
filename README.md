@@ -6,7 +6,7 @@
 
 An open-source Python3 application, it is a software package for MRI visualisation, processing, and analysis that is specifically tailored for neuromuscular diseases.
 
-As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please email b.kanber@ucl.ac.uk to get involved.
+As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email us](mailto:b.kanber@ucl.ac.uk) to get involved.
 
 ### Background
 
