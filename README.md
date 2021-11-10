@@ -1,18 +1,18 @@
 ## Musclesense Workbench
 
-*Musclesense Workbench* is a software package built around *Musclesense*, introduced in the following article:
+*Musclesense Workbench* is an open-source software built around *Musclesense*, introduced in the following article:
 
 *[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics, 2021](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
 
-A python3 application, it facilitates the processing and analysis of 3-point Dixon MRI of the lower limbs (to be extended to other acquisition sequences).
+An open-source Python3 application, it is a software package for MRI visualisation, processing, and analysis that is specifically tailored for neuromuscular diseases.
 
-UPDATE: We are currently presenting Musclesense workbench at the MYO-MRI 2021 conference. As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please email b.kanber@ucl.ac.uk to get involved.
+As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please email b.kanber@ucl.ac.uk to get involved.
 
 ### Background
 
 The software was produced as part of the Wellcome Institutional Strategic Support Fund (ISSF3) – AI in Healthcare Call 2019 project ***“Towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods”***. 
 
-Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London Hospitals NHS Foundation Trust, the project aims to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
+Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London and University College London Hospitals NHS Foundation Trust, the project aimed to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
 
 ![image](https://user-images.githubusercontent.com/12815964/119413079-df4f1780-bce4-11eb-8661-678c53ad945e.png)
 
