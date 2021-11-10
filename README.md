@@ -1,12 +1,6 @@
 ## Musclesense Workbench
 
-*Musclesense Workbench* is an open-source software built around *Musclesense*, introduced in the following article:
-
-*[Musclesense: a Trained, Artificial Neural Network for the Anatomical Segmentation of Lower Limb Magnetic Resonance Images in Neuromuscular Diseases, Neuroinformatics, 2021](https://pubmed.ncbi.nlm.nih.gov/32892313/)*
-
-An open-source Python3 application, it is a software package for MRI visualisation, processing, and analysis that is specifically tailored for neuromuscular diseases.
-
-As of October 2021 Musclesense Workbench is now a prototype software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
+Musclesense Workbench is a prototype, open-source software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
 
 ### Background
 
