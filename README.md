@@ -42,4 +42,4 @@ Musclesense the algorithm, and Musclesense Workbench should not be used in the d
 Includes icons by [Icon8](https://icons8.com)
 
 ### Enquiries
-Please submit any enquiries to <b.kanber@ucl.ac.uk>
+Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk)
