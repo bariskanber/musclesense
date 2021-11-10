@@ -1,6 +1,6 @@
 Musclesense workbench is an open-source software platform for neuromuscular imaging research, intended to be community maintained and developed. 
 
-It aims to offer MRI visualisation, processing, and analysis capabilities all within one platform (utilising the many great neuromuscular image processing toolboxes that are available out there through an installable plug-in mechanism) that is specifically tailored for use in neuromuscular diseases research. 
+It aims to offer MRI visualisation, processing, analysis, and biomarker extraction capabilities all within one platform (utilising the many great neuromuscular image processing toolboxes that are available out there through an installable plug-in mechanism). 
 
 Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
 
