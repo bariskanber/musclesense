@@ -1,5 +1,3 @@
-## Musclesense workbench
-
 Musclesense workbench is an open-source software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
 
 ### Background
