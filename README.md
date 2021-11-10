@@ -1,12 +1,14 @@
 ## Musclesense Workbench
 
-Musclesense Workbench is a prototype, open-source software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
+Musclesense Workbench is an open-source software platform for neuromuscular imaging research, intended to be community maintained and developed. Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
 
 ### Background
 
 The software was produced as part of the Wellcome Institutional Strategic Support Fund (ISSF3) – AI in Healthcare Call 2019 project ***“Towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods”***. 
 
 Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London and University College London Hospitals NHS Foundation Trust, the project aimed to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
+
+### Screenshot
 
 ![Screenshot from 2021-11-10 02-48-08](https://user-images.githubusercontent.com/12815964/141040542-3337cde7-6ba0-4ea4-b554-3c7380c69fef.png)
 
