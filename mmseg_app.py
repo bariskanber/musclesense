@@ -32,20 +32,21 @@ from matplotlib.figure import Figure
 from nifti_tools import save_nifti
 from transp_imshow import transp_imshow
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
-#from utils import scale2D
 
 import mmseg_ll
 
 APP_TITLE='Musclesense workbench'
+
 APP_INSTANCE_ID=''.join(random.choice(string.ascii_letters) for i in range(10))
+print('APP_INSTANCE_ID',APP_INSTANCE_ID)
 
-SETTING_FONT_NAME='Chilanka'
-SETTING_FIXED_FONT_NAME="Chilanka"
+SETTINGS_DIR=os.path.join(os.path.expanduser("~"),'.musclesensewb')
+print('SETTINGS_DIR',SETTINGS_DIR)
+if not os.path.exists(SETTINGS_DIR):
+    os.mkdir(SETTINGS_DIR)
 
-plt.rcParams["font.family"] = SETTING_FONT_NAME
-plt.rcParams['font.size'] = 9
-
-SETTINGS_FILE='mmseg_app.cfg'
+SETTINGS_FILE=os.path.join(SETTINGS_DIR,'musclesensewb.cfg')
+print('SETTINGS_FILE',SETTINGS_FILE)
 
 IMAGE_TYPE_FAT='Fat'
 IMAGE_TYPE_WATER='Water'
@@ -83,12 +84,43 @@ def removeAxesImages(ax):
             child.remove()
 
 def sliceSelectorGUI(studyToOpen):
+    SETTING_FONT_NAME='Fantasque Sans Mono'
+    SETTING_FONT_SIZE=13
+
+    available_fonts=[f.name for f in matplotlib.font_manager.fontManager.ttflist]
+    if SETTING_FONT_NAME not in available_fonts:
+        raise Exception('Please install the required font "%s" and try again'%(SETTING_FONT_NAME))
+
     root = tkinter.Tk()
     root.title(APP_TITLE)
+    root.configure(bg='#DDDDDD')
+    root.option_add("*background",'#DDDDDD')
 
-    myFont = Font(family=SETTING_FONT_NAME, size=11, weight=tkFont.NORMAL)
-    myBoldFont = Font(family=SETTING_FONT_NAME, size=11, weight=tkFont.BOLD)
-    myFixedFont = Font(family=SETTING_FIXED_FONT_NAME, size=11, weight=tkFont.NORMAL)
+    tkDefaultFonts=[
+        'TkDefaultFont',
+        'TkTextFont',
+        'TkFixedFont',
+        'TkMenuFont',
+        'TkHeadingFont',
+        'TkCaptionFont',
+        'TkSmallCaptionFont',
+        'TkIconFont',
+        'TkTooltipFont',
+    ]
+    
+    for defaultFont in tkDefaultFonts:
+        myFont=tkFont.nametofont(defaultFont)
+        myFont.configure(family=SETTING_FONT_NAME)
+        myFont.configure(size=SETTING_FONT_SIZE)
+
+    plt.rcParams["font.family"] = SETTING_FONT_NAME
+    plt.rcParams['font.size'] = SETTING_FONT_SIZE-3
+
+    s = ttk.Style()
+    s.theme_create( "MyStyle", parent="alt", settings={
+            "TNotebook.Tab": {"configure": {"padding": [100, 5],
+                                            "font" : (SETTING_FONT_NAME, SETTING_FONT_SIZE, 'normal')},}})
+    s.theme_use("MyStyle")
 
     layout_simple='simple'
     layout_normal='normal'
@@ -261,7 +293,7 @@ def sliceSelectorGUI(studyToOpen):
             settings_data['recentStudies']=root.recentStudies
             settings_data['overlayMaskOn']=root.overlayMaskOn
 
-            with open(os.path.join(INSTALL_DIR,SETTINGS_FILE),'wb') as f:
+            with open(SETTINGS_FILE,'wb') as f:
                 pickle.dump(settings_data,f)
 
             if verbose:
@@ -270,10 +302,10 @@ def sliceSelectorGUI(studyToOpen):
             displayError('ERROR: '+str(e))
 
     def loadSettings():
-        if not os.path.exists(os.path.join(INSTALL_DIR,SETTINGS_FILE)):
+        if not os.path.exists(SETTINGS_FILE):
             return
         try:
-            with open(os.path.join(INSTALL_DIR,SETTINGS_FILE),'rb') as f:
+            with open(SETTINGS_FILE,'rb') as f:
                 settings_data=pickle.load(f)
 
             root.lastdir=settings_data['lastdir']
@@ -592,7 +624,7 @@ def sliceSelectorGUI(studyToOpen):
             ffs.append(this_ff)
 
             if sep=='\t':
-                report+='%d\t%.0f\t\t%.1f±%.1f\n'%(sli+1,this_area,this_ff,this_ff_std)
+                report+='%d\t%.1f\t\t%.1f±%.1f\n'%(sli+1,this_area,this_ff,this_ff_std)
             else:
                 report+='%d,%f,%f,%f\n'%(sli+1,this_area,this_ff,this_ff_std)
 
@@ -637,8 +669,8 @@ def sliceSelectorGUI(studyToOpen):
             long_statistics_control.delete(1.0,tkinter.END)
             long_statistics_control.insert(tkinter.INSERT,long_report)
 
-        if sep=='\t':
-            report+='AVG\t%.0f±%.0f\t\t%.1f±%.1f\n'%(np.nanmean(areas),np.nanstd(areas),np.nanmean(ffs),np.nanstd(ffs))
+        #if sep=='\t':
+        #    report+='AVG\t%.1f±%.1f\t\t%.1f±%.1f\n'%(np.nanmean(areas),np.nanstd(areas),np.nanmean(ffs),np.nanstd(ffs))
 
         statistics_control.delete(1.0,tkinter.END)
         statistics_control.insert(tkinter.INSERT,report)
@@ -913,7 +945,7 @@ def sliceSelectorGUI(studyToOpen):
     
     tab_parent.add(tab_home,text='Home')
     tab_parent.add(tab_notes,text='Study notes')
-    tab_parent.add(tab_graphs,text='Analysis')
+    tab_parent.add(tab_graphs,text='Longitudinal analysis')
     tab_parent.add(tab_settings,text='Settings')
     tab_parent.pack(expand=1,fill='both')
 
@@ -929,29 +961,21 @@ def sliceSelectorGUI(studyToOpen):
     
     firstSliceButton = tkinter.Button(master=tab_home, text="First slice", command=firstSlice)
     firstSliceButton.pack(in_=frame1,side=tkinter.LEFT)
-    firstSliceButton.configure(font=myFont)
     button = tkinter.Button(master=tab_home, text="Last slice", command=lastSlice)
     button.pack(in_=frame1,side=tkinter.LEFT)
-    button.configure(font=myFont)
     button = tkinter.Button(master=tab_home, text="Previous slice", command=prevSlice)
     button.pack(in_=frame1,side=tkinter.LEFT)
-    button.configure(font=myFont)
     button = tkinter.Button(master=tab_home, text="Next slice", command=nextSlice)
     button.pack(in_=frame1,side=tkinter.LEFT)
-    button.configure(font=myFont)
     selectButton = tkinter.Button(master=tab_home, text="Select/Deselect slice", command=select)
     selectButton.pack(in_=frame1,side=tkinter.LEFT)
-    selectButton.configure(font=myFont)
 
     generateMaskButton = tkinter.Button(master=tab_home, text="Generate mask", command=generateMask)
     generateMaskButton.pack(in_=frame2,side=tkinter.LEFT)
-    generateMaskButton.configure(font=myFont)
     button = tkinter.Button(master=tab_home, text="Edit mask", command=editMask)
     button.pack(in_=frame2,side=tkinter.LEFT)
-    button.configure(font=myFont)
     showHideMaskButton = tkinter.Button(master=tab_home, text="Hide mask", command=showHideMask)
     showHideMaskButton.pack(in_=frame2,side=tkinter.LEFT)
-    showHideMaskButton.configure(font=myFont)
 
     root.option_add('*TCombobox*Listbox.font', myFont)
     root.option_add('*Dialog.msg.font', myFont)
@@ -967,10 +991,8 @@ def sliceSelectorGUI(studyToOpen):
     row=0
     label=tkinter.Label(frame,text=' Anatomy: ')
     label.grid(row=row,column=1,sticky='w')
-    label.configure(font=myFont)
     bodypart_combobox=ttk.Combobox(frame,state='readonly',values=['Thigh','Calf'])
     bodypart_combobox.grid(row=row,column=2,sticky='w')
-    bodypart_combobox.configure(font=myFont)
     row+=1
     
     for it in imagetypes:
@@ -979,16 +1001,13 @@ def sliceSelectorGUI(studyToOpen):
         label=tkinter.Label(frame)
         label.grid(row=row,column=1,sticky='w')
         label['text']=' '+it+' image: '
-        label.configure(font=myFont)
         link = tkinter.Label(master=frame, text="Not loaded")
-        link.configure(font=myFont)
         link.grid(row=row,column=2,sticky='w')
         setattr(root,imagetypes[it]+'link',link)
         row+=1
 
-    label=tkinter.Label(frame,text='   Statistics:')
+    label=tkinter.Label(frame,text='   Biomarkers:')
     label.grid(row=0,column=3,sticky='e')
-    label.configure(font=myBoldFont)
     label=tkinter.Label(frame,text=' ')
     label.grid(row=0,column=4,sticky='e')
     button=tkinter.Button(frame,image=icon_copy,command=statisticsCopyToClipboard)
@@ -996,14 +1015,12 @@ def sliceSelectorGUI(studyToOpen):
 
     statistics_control=ScrolledText(frame,width=60,height=10)
     statistics_control.grid(row=0,column=5,rowspan=7)
-    statistics_control.configure(font=myFixedFont)
     statistics_control.bind('<Button-1>',statistics_controlOnClick)
 
     label=tkinter.Label(tab_notes,text=' ')
     label.grid(row=0,column=0,sticky='e')
     label=tkinter.Label(tab_notes,text='   Notes:')
     label.grid(row=1,column=0,sticky='e')
-    label.configure(font=myBoldFont)
     button=tkinter.Button(tab_notes,image=icon_delete,command=lambda:case_notes_control.delete(1.0,tkinter.END))
     button.grid(row=2,column=0,sticky='e')
     button=tkinter.Button(tab_notes,image=icon_copy,command=caseNotesCopyToClipboard)
@@ -1013,25 +1030,20 @@ def sliceSelectorGUI(studyToOpen):
 
     case_notes_control=ScrolledText(tab_notes,width=80,height=20)
     case_notes_control.grid(row=1,column=2,rowspan=80)
-    case_notes_control.configure(font=myFont)
 
     label=tkinter.Label(tab_settings,text=' ')
     label.grid(row=0,column=0,sticky='e')
     label=tkinter.Label(tab_settings,text='Path to ITK-SNAP: ')
     label.grid(row=1,column=1,sticky='w')
-    label.configure(font=myFont)
     textBox_SETTING_PATHTOITKSNAP=tkinter.Entry(tab_settings,width=80)
     textBox_SETTING_PATHTOITKSNAP.grid(row=1,column=2,sticky='w')
-    textBox_SETTING_PATHTOITKSNAP.configure(font=myFont)
     textBox_SETTING_PATHTOITKSNAP.insert(0,'itksnap') # /home/bkanber/itksnap-3.6.0-20170401-Linux-x86_64/bin/itksnap
 
     bin_threshold_label=tkinter.Label(tab_settings,text='Binarisation threshold (%d%%): '%(root.bin_threshold))
     bin_threshold_label.grid(row=2,column=1,sticky='w')
-    bin_threshold_label.configure(font=myFont)
     bin_threshold_slider=tkinter.Scale(tab_settings,from_=10,to=90,bigincrement=10,resolution=10,showvalue=0,orient=tkinter.HORIZONTAL)
     bin_threshold_slider.set(root.bin_threshold)
     bin_threshold_slider.grid(row=2,column=2,sticky='w')
-    bin_threshold_slider.configure(font=myFont)
     bin_threshold_slider.bind('<ButtonRelease-1>',bin_threshold_sliderOnClick)
     bin_threshold_slider.bind('<B1-Motion>',bin_threshold_sliderOnClick)
     bin_threshold_label.grid_forget()
@@ -1041,7 +1053,6 @@ def sliceSelectorGUI(studyToOpen):
     label.grid(row=2,column=0,sticky='e')
     button=tkinter.Button(tab_settings,text='Save settings',command=lambda:saveSettings(verbose=True))
     button.grid(row=3,column=2,sticky='e')
-    button.configure(font=myFont)
 
     canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
 
@@ -1052,20 +1063,16 @@ def sliceSelectorGUI(studyToOpen):
     button.grid(row=0,column=0,sticky='w')
     label=tkinter.Label(frame,text=' Baseline study: ')
     label.grid(row=0,column=1,sticky='w')
-    label.configure(font=myBoldFont)
     baselineStudylink = tkinter.Label(master=frame, text="Not loaded")
-    baselineStudylink.configure(font=myFont)
     baselineStudylink.grid(row=0,column=2,sticky='w')
     label=tkinter.Label(frame,text=' ')
     label.grid(row=1,column=1,sticky='w')
-    label.configure(font=myFont)
 
     longgraphs_frame=tkinter.Frame(tab_graphs)
     longgraphs_frame.pack(side=tkinter.BOTTOM,anchor="w",fill=tkinter.BOTH, expand=1)
     longgraphs_frame.pack(padx=20,pady=20)
     long_statistics_control=ScrolledText(longgraphs_frame,width=120,height=18)
     long_statistics_control.pack(side=tkinter.LEFT,anchor='n')
-    long_statistics_control.configure(font=myFixedFont)
     long_statistics_control.bind('<Button-1>',statistics_controlOnClick)
     button=tkinter.Button(longgraphs_frame,image=icon_copy,command=statisticsCopyToClipboard)
     button.pack(side=tkinter.LEFT,anchor='n')
@@ -1139,6 +1146,7 @@ if __name__ == '__main__':
 
     MODULE_NAME=os.path.basename(__file__)
     INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
-    print('INSTALL_DIR',INSTALL_DIR,MODULE_NAME)
+    print('INSTALL_DIR',INSTALL_DIR)
+    print('MODULE_NAME',MODULE_NAME)
 
     sys.exit(sliceSelectorGUI(args.study))
