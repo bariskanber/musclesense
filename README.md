@@ -39,6 +39,8 @@ python3 -m pip install scikit-image* --user
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
+The software may ask you to run ***setup.py*** when you launch it for the first time. In this case please run ***python3 setup.py*** before running ***mmseg_app.py*** again.
+
 While the above example commands are given for an Ubuntu v20 OS installation, the software should work on other Linux OSes as well as MacOS. It will probably need some modifications before it will work on Windows though. Do not hesitate to get in touch if you have any trouble installing and getting the software up-and-running on your system.
 
 ### Notices
