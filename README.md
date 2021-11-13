@@ -39,8 +39,7 @@ python3 -m pip install scikit-image* --user
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
-### Troubleshooting
-1.  Symptom: ***KeyError: 'image_dim_ordering'*** Solution: add ***"image_dim_ordering": "th"*** to ***~/.keras/keras.json***
+While the above example commands are given for an Ubuntu v20 OS installation, the software should work on other Linux OSes as well as MacOS. It will probably need some modifications before it will work on Windows though. Do not hesitate to get in touch if you have any trouble installing and getting the software up-and-running on your system.
 
 ### Notices
 Musclesense the algorithm, and Musclesense Workbench should not be used in the diagnosis or treatment of patients.
