@@ -7,16 +7,14 @@ import matplotlib.pyplot as plt
 import shutil
 import platform
 
-MODULE_NAME=os.path.basename(__file__)
 INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR',INSTALL_DIR)
-print('MODULE_NAME',MODULE_NAME)
 
 SETTING_FONT_NAME='Fantasque Sans Mono'
 
 if platform.system()=='Linux':
     print('Installing fonts')
-    if not os.path.exist('~/.fonts'): os.mkdir('~/.fonts')
+    os.system('mkdir ~/.fonts')
 
     assert(os.system('cp %s/fantasque-sans-mono/TTF/FantasqueSansMono-*.ttf ~/.fonts'%(INSTALL_DIR))==0)
 
