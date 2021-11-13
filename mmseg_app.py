@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import os
 import sys
 import time
@@ -11,6 +12,7 @@ import nibabel as nib
 from subprocess import Popen, PIPE
 import argparse
 import pandas as pd
+import platform
 
 import tkinter
 from tkinter import *
@@ -23,7 +25,6 @@ import tkinter.font as tkFont
 from tkinter.font import Font
 
 import matplotlib
-print(matplotlib.matplotlib_fname())
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from matplotlib.backend_bases import key_press_handler
@@ -66,16 +67,16 @@ imagetypes={
 }
 
 def displayInfo(info):
-    tkinter.messagebox.showinfo('Musclesense workbench information dialog',message=info+' '+'\t'*2)
+    tkinter.messagebox.showinfo('Musclesense workbench',message=info+' '+'\t'*2)
 
 def displayError(error):
-    tkinter.messagebox.showerror('Musclesense workbench error dialog',message=error+' '+'\t'*2)
+    tkinter.messagebox.showerror('Musclesense workbench',message=error+' '+'\t'*2)
 
 def askOKCancel(msg):
-    return tkinter.messagebox.askokcancel('Musclesense workbench confirmation dialog', msg+' '+'\t'*2, default="cancel", icon="warning")
+    return tkinter.messagebox.askokcancel('Musclesense workbench', msg+' '+'\t'*2, default="cancel", icon="warning")
 
 def askYesNoCancel(msg):
-    return tkinter.messagebox.askyesnocancel('Musclesense workbench confirmation dialog', msg+' '+'\t'*2, default="cancel", icon="warning")
+    return tkinter.messagebox.askyesnocancel('Musclesense workbench', msg+' '+'\t'*2, default="cancel", icon="warning")
 
 def removeAxesImages(ax):
     for child in ax.get_children():
@@ -89,7 +90,7 @@ def sliceSelectorGUI(studyToOpen):
 
     available_fonts=[f.name for f in matplotlib.font_manager.fontManager.ttflist]
     if SETTING_FONT_NAME not in available_fonts:
-        raise Exception('Please install the required font "%s" and try again'%(SETTING_FONT_NAME))
+        raise Exception('Please install the required font "%s" available at %s and try again'%(SETTING_FONT_NAME,INSTALL_DIR))
 
     root = tkinter.Tk()
     root.title(APP_TITLE)
@@ -116,11 +117,10 @@ def sliceSelectorGUI(studyToOpen):
     plt.rcParams["font.family"] = SETTING_FONT_NAME
     plt.rcParams['font.size'] = SETTING_FONT_SIZE-3
 
-    s = ttk.Style()
-    s.theme_create( "MyStyle", parent="alt", settings={
-            "TNotebook.Tab": {"configure": {"padding": [100, 5],
-                                            "font" : (SETTING_FONT_NAME, SETTING_FONT_SIZE, 'normal')},}})
-    s.theme_use("MyStyle")
+    root.option_add('*TCombobox*Listbox.font', myFont)
+    root.option_add('*Dialog.msg.font', myFont)
+    root.option_add('*TNotebook.Tab.font', myFont)
+    # "TNotebook.Tab": {"configure": {"padding": [100, 5]}}})
 
     layout_simple='simple'
     layout_normal='normal'
@@ -142,8 +142,8 @@ def sliceSelectorGUI(studyToOpen):
     root.recentStudies=[]
 
     def showAbout():
-        displayInfo('Musclesense workbench\n\nCopyright 2020, University College London\n\n'
-        'Includes icons by Icon8 (https://icons8.com) and code by RemiLehe (https://github.com/RemiLehe/transparent_imshow/blob/master/transparent_imshow/transparent_imshow.py)\n\n'
+        displayInfo('Musclesense workbench - an integrated, open-source software platform for MRI-based neuromuscular diseases research\n\nCopyright 2020, University College London\n\n'
+        'Includes icons by Icon8 (https://icons8.com) and code by RemiLehe (https://github.com/RemiLehe)\n\n'
         'Supported by the Wellcome Trust, and University College London Hospitals NHS Foundation Trust')
 
     def overlayMaskOn(image_type):
@@ -454,7 +454,7 @@ def sliceSelectorGUI(studyToOpen):
         if hasattr(root,'lastdir'): initialdir=root.lastdir
         else: initialdir=os.getcwd()
 
-        res=filedialog.askopenfilename(initialdir=initialdir, title = "Select the baseline study to load",
+        res=filedialog.askopenfilename(parent=root, initialdir=initialdir, title = "Select the baseline study to load",
             filetypes = (("Study files","*.study"),("All files","*.*")))
         if type(res) is not str or res=='':
             return
@@ -489,7 +489,7 @@ def sliceSelectorGUI(studyToOpen):
             if hasattr(root,'lastdir'): initialdir=root.lastdir
             else: initialdir=os.getcwd()
 
-            res=filedialog.askopenfilename(initialdir=initialdir, title = "Select the study to open",
+            res=filedialog.askopenfilename(parent=root, initialdir=initialdir, title = "Select the study to open",
                 filetypes = (("Study files","*.study"),("All files","*.*")))
             if type(res) is not str or res=='':
                 return
@@ -848,8 +848,12 @@ def sliceSelectorGUI(studyToOpen):
             if hasattr(root,'lastdir'): initialdir=root.lastdir
             else: initialdir=os.getcwd()
 
-            res=filedialog.askopenfilename(initialdir=initialdir, title = "Select "+it+" image",
-                filetypes = (("NIFTI files","*.nii*"),("All files","*.*")))
+            if platform.system()=='Darwin':
+                res=filedialog.askopenfilename(parent=root, initialdir=initialdir, title = "Select "+it+" image",
+                    )
+            else:
+                res=filedialog.askopenfilename(parent=root, initialdir=initialdir, title = "Select "+it+" image",
+                    filetypes = (("NIFTI files","*.nii*"),("All files","*.*")))
             if type(res) is not str or res=='':
                 return
             print(res)
@@ -976,9 +980,6 @@ def sliceSelectorGUI(studyToOpen):
     button.pack(in_=frame2,side=tkinter.LEFT)
     showHideMaskButton = tkinter.Button(master=tab_home, text="Hide mask", command=showHideMask)
     showHideMaskButton.pack(in_=frame2,side=tkinter.LEFT)
-
-    root.option_add('*TCombobox*Listbox.font', myFont)
-    root.option_add('*Dialog.msg.font', myFont)
 
     icon_select=PhotoImage(file=os.path.join(INSTALL_DIR,'icons8-open-door-16.png'))
     icon_delete=PhotoImage(file=os.path.join(INSTALL_DIR,'icons8-erase-24.png'))

@@ -18,6 +18,7 @@ import subprocess
 import skimage.measure
 from sklearn.model_selection import GroupKFold
 
+import keras
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint, CSVLogger, Callback, LearningRateScheduler
 from keras.preprocessing.image import ImageDataGenerator
@@ -35,6 +36,13 @@ if sys.version_info[0] < 3:
     from StringIO import StringIO
 else:
     from io import StringIO
+
+import tensorflow
+import h5py
+
+print('keras',keras.__version__) # 2.3.1
+print('tensorflow',tensorflow.__version__) # 1.14.0
+print('h5py',h5py.__version__) # 2.10.0
 
 import socket
 MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
@@ -60,7 +68,8 @@ RUNTIME_PARAMS=dict()
 
 MODULE_NAME=os.path.basename(__file__)
 INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
-print('INSTALL_DIR',INSTALL_DIR,MODULE_NAME)
+print('INSTALL_DIR',INSTALL_DIR)
+print('MODULE_NAME',MODULE_NAME)
 
 with open('%s/.keras/keras.json'%(os.path.expanduser("~")),'rt') as json_file:
     data = json.load(json_file)
