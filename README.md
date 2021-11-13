@@ -26,7 +26,7 @@ The following are prerequisites (where appropriate with example commands):
 Python3  
 python3 -m pip install numpy --user  
 python3 -m pip install nibabel --user  
-sudo apt install python3-tk (or sudo yum install python3-tkinter) 
+sudo apt install python3-tk (Debian) OR sudo yum install python3-tkinter (RedHat)
 python3 -m pip install matplotlib --user  
 python3 -m pip install pandas --user  
 python3 -m pip install joblib --user  
