@@ -36,12 +36,11 @@ python3 -m pip install tensorflow==2.3.0 --user
 python3 -m pip install keras==2.3.1 --user  
 python3 -m pip install h5py==2.10.0 --user  
 python3 -m pip install scikit-image* --user  
+python3 setup.py (from the installation directory)  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
-The software may ask you to run ***setup.py*** when you launch it for the first time. In this case please run ***python3 setup.py*** before running ***mmseg_app.py*** again.
-
-While the above example commands are given for an Ubuntu v20 OS installation, the software should work on other Linux OSes as well as MacOS. It will probably need some modifications before it will work on Windows though. Do not hesitate to get in touch if you have any trouble installing and getting the software up-and-running on your system.
+While the above example commands are given for installation on an Ubuntu OS, the software should work on other Linux OSes as well as MacOS. It will probably need some modifications before it will work on Windows though. Do not hesitate to get in touch if you have any trouble installing and getting the software up-and-running on your system.
 
 ### Notices
 Musclesense the algorithm, and Musclesense Workbench should not be used in the diagnosis or treatment of patients.
