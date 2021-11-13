@@ -23,8 +23,8 @@ Download the latest [release version](https://github.com/bariskanber/musclesense
 The following are prerequisites (where appropriate with example commands):   
 
 *[itk-snap](http://www.itksnap.org)  
-[Python3](https://www.python.org/downloads/)
-sudo apt install python3-pip
+[Python3](https://www.python.org/downloads/)  
+sudo apt install python3-pip  
 python3 -m pip install numpy --user  
 python3 -m pip install nibabel --user  
 sudo apt install python3-tk  
