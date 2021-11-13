@@ -144,7 +144,7 @@ def sliceSelectorGUI(studyToOpen):
 
     def showAbout():
         displayInfo('Musclesense workbench - an integrated, open-source software platform for MRI-based neuromuscular diseases research\n\nCopyright 2020, University College London\n\n'
-        'Includes icons by Icon8 (https://icons8.com) and code by RemiLehe (https://github.com/RemiLehe)\n\n'
+        'Includes icons by Icon8 (https://icons8.com), fonts by Jany Belluz (jany.belluz@hotmail.fr), and code by RemiLehe (https://github.com/RemiLehe)\n\n'
         'Supported by the Wellcome Trust, and University College London Hospitals NHS Foundation Trust')
 
     def overlayMaskOn(image_type):

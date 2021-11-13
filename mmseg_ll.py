@@ -71,15 +71,16 @@ INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR',INSTALL_DIR)
 print('MODULE_NAME',MODULE_NAME)
 
-with open('%s/.keras/keras.json'%(os.path.expanduser("~")),'rt') as json_file:
-    data = json.load(json_file)
-    if DEBUG: print(data)
+if False:
+    with open('%s/.keras/keras.json'%(os.path.expanduser("~")),'rt') as json_file:
+        data = json.load(json_file)
+        if DEBUG: print(data)
 
-    assert(data['floatx']=="float32")
-    assert(data['epsilon']==1e-07)
-    assert(data['backend']=="tensorflow")
-    assert(data['image_data_format']=="channels_last")
-    assert(data['image_dim_ordering']=="th")
+        assert(data['floatx']=="float32")
+        assert(data['epsilon']==1e-07)
+        assert(data['backend']=="tensorflow")
+        assert(data['image_data_format']=="channels_last")
+        assert(data['image_dim_ordering']=="th")
 
 def get_subject_id_from_DIR(DIR):
         DIR=DIR.split('^')
