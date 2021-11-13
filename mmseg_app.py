@@ -90,7 +90,7 @@ def sliceSelectorGUI(studyToOpen):
 
     available_fonts=[f.name for f in matplotlib.font_manager.fontManager.ttflist]
     if SETTING_FONT_NAME not in available_fonts:
-        raise Exception('Please install the required font "%s" available at %s and try again'%(SETTING_FONT_NAME,INSTALL_DIR))
+        raise Exception('Application not completely setup yet, try running setup.py available at %s and try again'%(INSTALL_DIR))
 
     root = tkinter.Tk()
     root.title(APP_TITLE)
