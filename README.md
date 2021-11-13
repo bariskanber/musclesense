@@ -18,7 +18,7 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 
 ### Getting started
 
-Download a [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and save at a location of your choice on your Linux workstation. The source code and the model weights should be saved in the same directory. Please do not just clone or download the repository as you will be missing the required model weights.
+Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and save at a location of your choice on your Linux workstation. The source code and the model weights should be saved in the same directory. Please do not just clone or download the repository as you will be missing the required model weights.
 
 The following are prerequisites (where appropriate with example commands):   
   
