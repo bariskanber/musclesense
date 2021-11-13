@@ -21,18 +21,20 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and save at a location of your choice on your Linux workstation. The source code and the model weights should be saved in the same directory. Please do not just clone or download the repository as you will be missing the required model weights.
 
 The following are prerequisites (where appropriate with example commands):   
-  
+
 *[itk-snap](http://www.itksnap.org)  
-[Python3](https://www.python.org/downloads/)    
+[Python3](https://www.python.org/downloads/)
+sudo apt install python3-pip
 python3 -m pip install numpy --user  
 python3 -m pip install nibabel --user  
-sudo apt install python3-tk (OR sudo yum install python3-tkinter)  
+sudo apt install python3-tk  
 python3 -m pip install matplotlib --user  
 python3 -m pip install pandas --user  
 python3 -m pip install joblib --user  
 python3 -m pip install scikit-learn --user  
 python3 -m pip install tensorflow==2.3.0 --user  
-python3 -m pip install keras --user  
+python3 -m pip install keras=2.3.1 --user  
+python3 -m pip install h5py=2.10.0 --user  
 python3 -m pip install scikit-image* --user  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
