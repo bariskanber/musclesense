@@ -24,16 +24,16 @@ The following are prerequisites (where appropriate with example commands):
   
 *[itk-snap](http://www.itksnap.org)  
 Python3  
-python3 -m pip install numpy  
-python3 -m pip install nibabel  
-sudo apt install python3-tk  
-python3 -m pip install matplotlib  
-python3 -m pip install pandas  
-python3 -m pip install joblib  
-python3 -m pip install scikit-learn  
-python3 -m pip install tensorflow==2.3.0  
-python3 -m pip install keras  
-python3 -m pip install scikit-image*  
+python3 -m pip install numpy --user  
+python3 -m pip install nibabel --user  
+sudo apt install python3-tk (or sudo yum install python3-tkinter) 
+python3 -m pip install matplotlib --user  
+python3 -m pip install pandas --user  
+python3 -m pip install joblib --user  
+python3 -m pip install scikit-learn --user  
+python3 -m pip install tensorflow==2.3.0 --user  
+python3 -m pip install keras --user  
+python3 -m pip install scikit-image* --user  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
