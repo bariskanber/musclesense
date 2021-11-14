@@ -14,7 +14,7 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 
 ### What it looks like
 
-![Screenshot from 2021-11-11 01-47-16](https://user-images.githubusercontent.com/12815964/141222325-39cfd6cd-06b2-4a21-b3a9-e2cf1856cbd7.png)
+![Screenshot from 2021-11-14 02-22-07](https://user-images.githubusercontent.com/12815964/141664948-811d4f88-e239-4af5-a9f8-1b92247e597d.png)
 
 ### Getting started
 
