@@ -47,7 +47,5 @@ While the above example commands are given for installation on an Ubuntu OS, the
 ### Notices
 Musclesense the algorithm, and Musclesense Workbench should not be used in the diagnosis or treatment of patients.
 
-Includes icons by [Icon8](https://icons8.com)
-
 ### Enquiries
 Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk)
