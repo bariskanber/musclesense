@@ -18,7 +18,9 @@ Funded by the Wellcome Trust and the National Institute for Health Research Biom
 
 ### Getting started
 
-Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) and save at a location of your choice on your Linux workstation. The source code (e.g. ***musclesenseworkbench-rX.Y.zip***) and the model weights (e.g. ***musclesenseweights-vA.B.zip***) should both be unzipped into the same directory. Please do not just clone or download the repository as you will be missing the required model weights.
+Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Create an installation directory (e.g. ***musclesenseworkbench***) at a location of your choice on your computer. The source code (e.g. ***musclesenseworkbench-rX.Y.zip***) and the model weights (e.g. ***musclesenseweights-vA.B.zip***) should then both be unzipped into the installation directory. 
+
+Please do not just clone or download the repository as you will be missing the required model weights.
 
 The following are prerequisites (where appropriate with example commands):   
 
@@ -36,7 +38,7 @@ python3 -m pip install tensorflow==2.3.0 --user
 python3 -m pip install keras==2.3.1 --user  
 python3 -m pip install h5py==2.10.0 --user  
 python3 -m pip install scikit-image* --user  
-python3 setup.py (from the installation directory)  
+*python3 setup.py (from the installation directory)  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
