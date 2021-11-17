@@ -10,7 +10,7 @@ The software was produced as part of the Wellcome Institutional Strategic Suppor
 
 Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London and University College London Hospitals NHS Foundation Trust, the project aimed to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
 
-Future versions of the software will allow the use of different muscle segmentation tools utilising different methods and/or acquisition sequences using a configurable plug-in mechanism. The default deep-learning-based segmentation tool embedded into the software was described in the article [linked here](https://pubmed.ncbi.nlm.nih.gov/32892313/).
+Future versions of the software will allow the use of different muscle segmentation tools utilising alternate methods and/or acquisition sequences using a configurable plug-in mechanism. The default deep-learning-based segmentation tool embedded into the software was described in the article [linked here](https://pubmed.ncbi.nlm.nih.gov/32892313/).
 
 ### Consortium
 The current consortium members are University College London (UK), and Newcastle University (UK). Please [email](mailto:b.kanber@ucl.ac.uk) us to express interest in joining the consortium.
