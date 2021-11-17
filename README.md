@@ -31,16 +31,19 @@ The following are prerequisites (where appropriate with example commands):
 [Python3](https://www.python.org/downloads/)  
 sudo apt install python3-pip  
 sudo apt install python3-tk  
-python3 -m pip install numpy --user  
-python3 -m pip install nibabel --user  
-python3 -m pip install matplotlib --user  
-python3 -m pip install pandas --user  
-python3 -m pip install joblib --user  
-python3 -m pip install scikit-learn --user  
-python3 -m pip install tensorflow==2.3.0 --user  
-python3 -m pip install keras==2.3.1 --user  
-python3 -m pip install h5py==2.10.0 --user  
-python3 -m pip install scikit-image --user  
+python3 -m pip install virtualenv (from the installation directory)
+python3 -m virtualenv musclesense (from the installation directory)
+source musclesense/bin/activate (from the installation directory)
+python3 -m pip install numpy  
+python3 -m pip install nibabel  
+python3 -m pip install matplotlib  
+python3 -m pip install pandas  
+python3 -m pip install joblib  
+python3 -m pip install scikit-learn  
+python3 -m pip install tensorflow==2.3.0  
+python3 -m pip install keras==2.3.1  
+python3 -m pip install h5py==2.10.0  
+python3 -m pip install scikit-image  
 python3 setup.py (from the installation directory)*  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
