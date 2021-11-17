@@ -1,16 +1,19 @@
 ### Musclesense workbench
 
-Musclesense workbench is an open-source software platform for neuromuscular imaging research, that is intended to be community maintained and developed. 
+Musclesense workbench is an open-source software for neuromuscular imaging research, that is maintained and developed by a consortium of higher education institutions. 
 
-It aims to offer MRI visualisation, processing, cross-sectional/longitudinal analysis, and biomarker extraction capabilities all within one platform (utilising the many great neuromuscular image processing toolboxes that are available out there through an installable plug-in mechanism). 
-
-Please [email](mailto:b.kanber@ucl.ac.uk) us to get involved.
+The software offers cross-platform MRI visualisation, processing, cross-sectional/longitudinal analysis, and biomarker extraction capabilities all within one platform (utilising the many great neuromuscular image processing toolboxes that are available out there through an installable plug-in mechanism). 
 
 ### Background
 
 The software was produced as part of the Wellcome Institutional Strategic Support Fund (ISSF3) – AI in Healthcare Call 2019 project ***“Towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods”***. 
 
 Funded by the Wellcome Trust and the National Institute for Health Research Biomedical Research Centre at University College London and University College London Hospitals NHS Foundation Trust, the project aimed to contribute towards improving the clinical care of patients with neuromuscular diseases using innovative artificial intelligence imaging methods.
+
+Future versions of the software will allow the use of different muscle segmentation tools utilising different methods and/or acquisition sequences using a configurable plug-in mechanism. The default deep-learning-based segmentation tool embedded into the software was described in the article [linked here](https://pubmed.ncbi.nlm.nih.gov/32892313/).
+
+### Consortium
+The current consortium members are University College London (UK), and Newcastle University (UK). Please [email](mailto:b.kanber@ucl.ac.uk) us to express interest in joining the consortium.
 
 ### What it looks like
 
