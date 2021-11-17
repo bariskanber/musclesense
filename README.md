@@ -30,7 +30,7 @@ The following are prerequisites (where appropriate with example commands):
 *[itk-snap](http://www.itksnap.org)  
 [Python3](https://www.python.org/downloads/)  
 sudo apt install python3-pip  
-sudo apt install python3-tk  *
+sudo apt install python3-tk*  
 
 The following should be run from inside the installation directory:  
 
@@ -47,7 +47,7 @@ python3 -m pip install tensorflow==2.3.0
 python3 -m pip install keras==2.3.1  
 python3 -m pip install h5py==2.10.0  
 python3 -m pip install scikit-image  
-python3 setup.py  *  
+python3 setup.py*  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
