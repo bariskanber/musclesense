@@ -31,9 +31,9 @@ The following are prerequisites (where appropriate with example commands):
 [Python3](https://www.python.org/downloads/)  
 sudo apt install python3-pip  
 sudo apt install python3-tk  
-python3 -m pip install virtualenv (from the installation directory)
-python3 -m virtualenv musclesense (from the installation directory)
-source musclesense/bin/activate (from the installation directory)
+python3 -m pip install virtualenv (from the installation directory)  
+python3 -m virtualenv musclesense (from the installation directory)  
+source musclesense/bin/activate (from the installation directory)  
 python3 -m pip install numpy  
 python3 -m pip install nibabel  
 python3 -m pip install matplotlib  
