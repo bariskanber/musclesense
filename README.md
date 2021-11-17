@@ -41,7 +41,7 @@ python3 -m pip install tensorflow==2.3.0 --user
 python3 -m pip install keras==2.3.1 --user  
 python3 -m pip install h5py==2.10.0 --user  
 python3 -m pip install scikit-image --user  
-python3 setup.py*  
+python3 setup.py (from the installation directory)*  
 
 To run the workbench, type ***python3 mmseg_app.py*** from the installation directory
 
