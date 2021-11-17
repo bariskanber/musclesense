@@ -41,7 +41,7 @@ import tensorflow
 import h5py
 
 print('keras',keras.__version__) # 2.3.1
-print('tensorflow',tensorflow.__version__) # 1.14.0
+print('tensorflow',tensorflow.__version__) # 2.3.0 (on MY_PC use 1.14.0)
 print('h5py',h5py.__version__) # 2.10.0
 
 import socket
@@ -1364,7 +1364,12 @@ def main(al,inputdir,widget):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("mmseg_ll")
     parser.add_argument('--version', action='version', version='1.0.0')
-    parser.add_argument('-al', type=str, help='anatomical location (calf/thigh)', default='calf')
-    parser.add_argument('-inputdir', type=str, help='input directory (or train/validate)', default='validate')
+    parser.add_argument('-al', type=str, help='anatomical location (calf/thigh)')
+    parser.add_argument('-inputdir', type=str, help='input directory/folder (or train/validate)')
     args=parser.parse_args()
+
+    if args.inputdir is None or args.al is None:
+        parser.print_help()
+        sys.exit(1)
+
     main(args.al,args.inputdir,widget=None)
