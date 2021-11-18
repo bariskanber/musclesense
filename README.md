@@ -37,7 +37,7 @@ python3 -m pip install matplotlib --user
 python3 -m pip install pandas --user  
 python3 -m pip install joblib --user  
 python3 -m pip install scikit-learn --user  
-python3 -m pip install tensorflow==2.3.0 --user  
+python3 -m pip install tensorflow==2.2.0 --user  
 python3 -m pip install keras==2.3.1 --user  
 python3 -m pip install h5py==2.10.0 --user  
 python3 -m pip install scikit-image --user  
