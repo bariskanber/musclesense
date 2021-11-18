@@ -52,9 +52,9 @@ print('SETTINGS_FILE',SETTINGS_FILE)
 IMAGE_TYPE_FAT='Fat'
 IMAGE_TYPE_WATER='Water'
 IMAGE_TYPE_FATFRACTION='Fat fraction'
-IMAGE_TYPE_DIXON345='Dixon 345ms'
-IMAGE_TYPE_DIXON460='Dixon 460ms'
-IMAGE_TYPE_DIXON575='Dixon 575ms'
+IMAGE_TYPE_DIXON345='Dixon 3.45ms'
+IMAGE_TYPE_DIXON460='Dixon 4.60ms'
+IMAGE_TYPE_DIXON575='Dixon 5.75ms'
 IMAGE_TYPE_MASK='Mask'
 
 imagetypes={
@@ -229,15 +229,15 @@ def sliceSelectorGUI(studyToOpen):
         if not justmask:
             removeAxesImages(ax4)
             ax4.imshow(prepForDisplay(root.dixon_345img,root.sli),cmap='gray')
-            ax4.set_title('Dixon 345ms'+text)
+            ax4.set_title('Dixon 3.45ms'+text)
 
             removeAxesImages(ax5)
             ax5.imshow(prepForDisplay(root.dixon_460img,root.sli),cmap='gray')
-            ax5.set_title('Dixon 460ms'+text)
+            ax5.set_title('Dixon 4.60ms'+text)
 
             removeAxesImages(ax6)
             ax6.imshow(prepForDisplay(root.dixon_575img,root.sli),cmap='gray')
-            ax6.set_title('Dixon 575ms'+text)
+            ax6.set_title('Dixon 5.75ms'+text)
         
         canvas.draw()
         #toolbar.update()
@@ -688,7 +688,7 @@ def sliceSelectorGUI(studyToOpen):
 
     def editMask():
         if root.fatimg is None or root.waterimg is None or root.dixon_345img is None or root.dixon_460img is None or root.dixon_575img is None or root.maskimg is None:
-            displayInfo('Fat, water, Dixon 345ms, Dixon 460ms, Dixon 575ms, and mask images are required')
+            displayInfo('Fat, water, Dixon 3.45ms, Dixon 4.60ms, Dixon 5.75ms, and mask images are required')
             return
 
         fatfile=root.fatimglink['text']
@@ -716,7 +716,7 @@ def sliceSelectorGUI(studyToOpen):
 
     def generateMask():
         if root.fatimg is None or root.waterimg is None or root.dixon_345img is None or root.dixon_460img is None or root.dixon_575img is None:
-            displayInfo('Fat, water, Dixon 345ms, Dixon 460ms, and Dixon 575ms images are required to generate a muscle mask')
+            displayInfo('Fat, water, Dixon 3.45ms, Dixon 4.60ms, and Dixon 5.75ms images are required to generate a muscle mask')
             return
 
         body_part=str(bodypart_combobox.get()).lower()
@@ -1099,9 +1099,9 @@ def sliceSelectorGUI(studyToOpen):
     overlayMaskOnMenu.add_command(label="Fat image", command=lambda:overlayMaskOn(IMAGE_TYPE_FAT))
     overlayMaskOnMenu.add_command(label="Water image", command=lambda:overlayMaskOn(IMAGE_TYPE_WATER))
     overlayMaskOnMenu.add_command(label="Fat fraction image", command=lambda:overlayMaskOn(IMAGE_TYPE_FATFRACTION))
-    overlayMaskOnMenu.add_command(label="Dixon 345ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON345))
-    overlayMaskOnMenu.add_command(label="Dixon 460ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON460))
-    overlayMaskOnMenu.add_command(label="Dixon 575ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON575))
+    overlayMaskOnMenu.add_command(label="Dixon 3.45ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON345))
+    overlayMaskOnMenu.add_command(label="Dixon 4.60ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON460))
+    overlayMaskOnMenu.add_command(label="Dixon 5.75ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON575))
 
     viewmenu = Menu(menubar, tearoff=0)
     viewmenu.add_command(label="New workbench", command=newWorkbench)

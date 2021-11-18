@@ -42,7 +42,7 @@ import tensorflow
 import h5py
 
 print('keras',keras.__version__) # 2.3.1
-print('tensorflow',tensorflow.__version__) # 2.3.0 (on MY_PC use 1.14.0)
+print('tensorflow',tensorflow.__version__) # 2.2.0
 print('h5py',h5py.__version__) # 2.10.0
 
 import socket
