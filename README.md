@@ -21,9 +21,11 @@ The current consortium members are University College London (UK), and Newcastle
 
 ### Getting started
 
-Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Create an installation directory/folder (e.g. ***musclesenseworkbench***) at a location of your choice on your computer. The source code (e.g. ***musclesenseworkbench-rX.Y.zip***) and the model weights (e.g. ***musclesenseweights-vA.B.zip***) should then both be unzipped into the installation directory. 
+Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Alternatively, you can download or clone the repository instead if you would like to test the latest development version. 
 
-Please do not just clone or download the repository as you will be missing the required model weights.
+Simply save and extract your download at a location of your choice on your computer. 
+
+It is no longer necessary to download any model weights as these are automatically retrieved by the software as required.
 
 The following are prerequisites (where appropriate with example commands):   
 
