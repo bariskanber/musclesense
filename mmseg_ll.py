@@ -15,6 +15,7 @@ from joblib import Parallel, delayed
 import shutil
 import argparse
 import subprocess
+import urllib.request
 import skimage.measure
 from sklearn.model_selection import GroupKFold
 
@@ -1086,15 +1087,21 @@ def test(test_DIRS):
     assert(np.array_equal(np.unique(test_maskimg),[0,1]) or np.array_equal(np.unique(test_maskimg),[0]))
 
     model=MYNET()
-    for fold in range(0,10):
+    for fold in range(0,5):
         print('batch_size: %d'%(batch_size))
 
         weightsfile='%s.%d.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'])
         weightsfile=os.path.join(INSTALL_DIR,weightsfile)
 
-        if fold>0 and not os.path.exists(weightsfile):
-            break
-
+        if not os.path.exists(weightsfile):
+            msg='Downloading '+os.path.basename(weightsfile)
+            print(msg)
+            if RUNTIME_PARAMS['widget'] is not None:
+                RUNTIME_PARAMS['widget']['text']=msg
+                RUNTIME_PARAMS['widget'].update()
+            url="https://github.com/bariskanber/musclesenseworkbench/releases/download/r1/%s"%(os.path.basename(weightsfile))
+            urllib.request.urlretrieve(url, weightsfile)
+        
         if RUNTIME_PARAMS['widget'] is not None:
             RUNTIME_PARAMS['widget']['text']='Calculating mask (%.0f%%)...'%(100*float(fold+1)/5)
             RUNTIME_PARAMS['widget'].update()
