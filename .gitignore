@@ -1,3 +1,8 @@
 *.weights
 __pycache__*
-data/
+brcalskd/
+hypopp/
+ibmcmt_p*/
+.vscode/
+sample3ptDixonDataForJose*
+

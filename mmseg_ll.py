@@ -14,7 +14,6 @@ import json
 from joblib import Parallel, delayed
 import shutil
 import argparse
-import subprocess
 import urllib.request
 import skimage.measure
 from sklearn.model_selection import GroupKFold
@@ -84,7 +83,7 @@ if False:
         assert(data['image_dim_ordering']=="th")
 
 def get_subject_id_from_DIR(DIR):
-        DIR=DIR.split('^')
+        DIR=DIR.split('^') # e.g. thigh^brcalskd/BRCALSKD_056C
         assert(len(DIR)>=2)
         DIR=DIR[1]
         
@@ -914,8 +913,11 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
     test_DIR,test_data,test_maskimg = read_and_normalize_data(test_DIRS,True)
     train_DIR,train_data,train_maskimg = read_and_normalize_data(train_DIRS)
     
-    assert(np.array_equal(np.unique(train_maskimg),[0,1]))
-    assert(np.array_equal(np.unique(test_maskimg),[0,1]) or np.array_equal(np.unique(test_maskimg),[0]))
+    if RUNTIME_PARAMS['multiclass']:
+        print('Not validating mask values in multiclass mode')
+    else:
+        assert(np.array_equal(np.unique(train_maskimg),[0,1]))
+        assert(np.array_equal(np.unique(test_maskimg),[0,1]) or np.array_equal(np.unique(test_maskimg),[0]))
 
     outer_train_subjects=[]
     for i in range(0,len(train_DIR)):
@@ -1014,11 +1016,11 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         model.load_weights(TEMP_WEIGHTS_FILE)
 
         if RUNTIME_PARAMS['inputdir']=='train':
-            shutil.move(TEMP_WEIGHTS_FILE,'%s.%d.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al']))
-            trainingMetricsFilename='%s.%s.%d.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al']) 
+            shutil.move(TEMP_WEIGHTS_FILE,'%s.%d.%s.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary'))
+            trainingMetricsFilename='%s.%s.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
         else:
             os.remove(TEMP_WEIGHTS_FILE)
-            trainingMetricsFilename='%s.%s.%d.%d.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al']) 
+            trainingMetricsFilename='%s.%s.%d.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
 
         saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
 
@@ -1153,6 +1155,7 @@ def main(al,inputdir,widget):
     RUNTIME_PARAMS['al']=al
     RUNTIME_PARAMS['inputdir']=inputdir
     RUNTIME_PARAMS['widget']=widget
+    RUNTIME_PARAMS['multiclass']=True # multiclass: individual muscle segmentation (vs. whole muscle)
 
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text']='Calculating mask...'
@@ -1221,7 +1224,7 @@ def main(al,inputdir,widget):
 
                     #if MY_PC and len(DIRS)>20: break
 
-        if MY_PC: DIRS=DIRS[:20]
+        #if MY_PC: DIRS=DIRS[:20]
         print('%d cases found'%(len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir']=='train':
@@ -1252,10 +1255,8 @@ def main(al,inputdir,widget):
             difficult_cases=[
         #        'thigh^ibmcmt_p1/p1-007a',
         #        'thigh^ibmcmt_p1/p1-007b',
-
         #        'thigh^ibmcmt_p2/p2-008',
         #        'thigh^ibmcmt_p2/p2-008b',
-                
         #        'calf^ibmcmt_p4/p4-044',
         #        'calf^ibmcmt_p4/p4-061',
         #        'calf^hypopp/006_b',
