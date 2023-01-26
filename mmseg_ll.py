@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+import os
 import pandas as pd
 import numpy as np
 import nibabel as nib
-import os
 import sys
 import glob
 import time
@@ -18,31 +18,22 @@ import urllib.request
 import skimage.measure
 from sklearn.model_selection import GroupKFold
 
-import keras
-from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping, ModelCheckpoint, CSVLogger, Callback, LearningRateScheduler
-from keras.preprocessing.image import ImageDataGenerator
-from keras.losses import BinaryCrossentropy
+import tensorflow as tf
+import tensorflow.keras
+tensorflow.keras.backend.set_image_data_format('channels_last')
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, Callback, LearningRateScheduler
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import my_losses 
 from utils import numpy_dice_coefficient, scale2D, saveTrainingMetrics
 from nifti_tools import save_nifti
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
+from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
 from noisy import noisy
-from unet import unet
-from unet_ternaus_tweaked import ternausNet16_tweaked
 
-if sys.version_info[0] < 3: 
-    from StringIO import StringIO
-else:
-    from io import StringIO
-
-import tensorflow
-import h5py
-
-print('keras',keras.__version__) # 2.3.1
-print('tensorflow',tensorflow.__version__) # 2.2.0
-print('h5py',h5py.__version__) # 2.10.0
+import segmentation_models as sm
+sm.set_framework('tf.keras')
 
 import socket
 MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
@@ -62,7 +53,7 @@ target_size_y,target_size_x=320//scale_down_factor,160//scale_down_factor
 
 if MY_PC: batch_size=1
 else: 
-    batch_size=16 
+    batch_size=1
 
 RUNTIME_PARAMS=dict()
 
@@ -135,7 +126,18 @@ MASK_VALIDITY_BLANKMASK=2
 MASK_VALIDITY_BAD=3
 MASK_VALIDITY_SINGLESIDED=4
 
-def valid_mask(mask,help_str):
+def valid_mask(mask_original,help_str):
+    mask=mask_original.copy()
+    if RUNTIME_PARAMS['multiclass']:
+        if RUNTIME_PARAMS['al']=='calf':
+            mask[mask_original>0]=1
+            mask[mask_original==7]=0 # right tibia marrow
+            mask[mask_original==17]=0 # left tibia marrow
+        else:
+            mask[mask_original>0]=1
+            mask[mask_original==11]=0 # right femur marrow
+            mask[mask_original==31]=0 # left femur marrow
+    
     if not np.array_equal(mask.shape,[target_size_y,target_size_x]):
         print('np.array_equal(mask.shape,[target_size_y,target_size_x]) is false',mask.shape,[target_size_y,target_size_x])
         assert(False)
@@ -375,23 +377,27 @@ def load_case_base(inputdir,DIR,test=False):
     if ll=='calf' and DIR=='ibmcmt_p5/p5-068': maskimg[:,:,5]=0
     if ll=='calf' and DIR=='brcalskd/BRCALSKD_002C': maskimg[:,:,6]=0
 
-    if filename is not None and not convertMRCCentreMaskToBinary(DIR,ll,maskimg):
-        raise Exception('convertMRCCentreMaskToBinary returned False')
+    if not RUNTIME_PARAMS['multiclass']:
+        if filename is not None and not convertMRCCentreMaskToBinary(DIR,ll,maskimg):
+            raise Exception('convertMRCCentreMaskToBinary returned False')
 
-    if ll=='calf' and DIR in ['brcalskd/BRCALSKD_028A','brcalskd/BRCALSKD_039C','hypopp/014_b','hypopp/006_a','ibmcmt_p5/p5-034','ibmcmt_p3/p3-008','ibmcmt_p6/p6-008']:
-        pass
-    elif ll=='thigh' and DIR in ['ibmcmt_p6/p6-008','hypopp/023_a','ibmcmt_p4/p4-027','ibmcmt_p4/p4-033','ibmcmt_p4/p4-062','ibmcmt_p4/p4-004','ibmcmt_p4/p4-046','brcalskd/BRCALSKD_028A','brcalskd/BRCALSKD_036C','ibmcmt_p2/p2-072','ibmcmt_p1/p1-014b','ibmcmt_p3/p3-067','ibmcmt_p3/p3-051','ibmcmt_p3/p3-011','ibmcmt_p2/p2-010','ibmcmt_p2/p2-041','ibmcmt_p4/p4-060']:
-        pass
-    elif (inputdir=='train' or inputdir=='validate') and not simplerModel:
-        QQ=maskimg>0
-        if np.sum(np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10))>150:
-            if False:
-                print('water',waterimg[QQ][np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)])
-                print('fat',fatimg[QQ][np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)])
-            print('CHECK_VAL',np.sum(np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)))
-            print(filename)
-            raise Exception('Please check mask for '+DIR)
-
+        if ll=='calf' and DIR in ['brcalskd/BRCALSKD_028A','brcalskd/BRCALSKD_039C','hypopp/014_b','hypopp/006_a','ibmcmt_p5/p5-034','ibmcmt_p3/p3-008','ibmcmt_p6/p6-008']:
+            pass
+        elif ll=='thigh' and DIR in ['ibmcmt_p6/p6-008','hypopp/023_a','ibmcmt_p4/p4-027','ibmcmt_p4/p4-033','ibmcmt_p4/p4-062','ibmcmt_p4/p4-004','ibmcmt_p4/p4-046','brcalskd/BRCALSKD_028A','brcalskd/BRCALSKD_036C','ibmcmt_p2/p2-072','ibmcmt_p1/p1-014b','ibmcmt_p3/p3-067','ibmcmt_p3/p3-051','ibmcmt_p3/p3-011','ibmcmt_p2/p2-010','ibmcmt_p2/p2-041','ibmcmt_p4/p4-060']:
+            pass
+        elif (inputdir=='train' or inputdir=='validate') and not simplerModel:
+            QQ=maskimg>0
+            if np.sum(np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10))>150:
+                if False:
+                    print('water',waterimg[QQ][np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)])
+                    print('fat',fatimg[QQ][np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)])
+                print('CHECK_VAL',np.sum(np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10)))
+                print(filename)
+                raise Exception('Please check mask for '+DIR)
+    else:
+        if filename is not None and not convertMRCCentreMaskToStandard(DIR,ll,maskimg):
+            raise Exception('convertMRCCentreMaskToStandard returned False')
+        
     return (fatimg,waterimg,dixon_345img,dixon_575img,maskimg)
 
 def load_case(inputdir,DIR,test=False):
@@ -441,8 +447,11 @@ def scale_to_target(img):
     if np.array_equal(img.shape,[target_size_y,target_size_x]):
         return img
 
-    return scale2D(img,target_size_y,target_size_x,order=3,mode='nearest',cval=0.0,prefilter=True)
-
+    if not RUNTIME_PARAMS['multiclass']:
+        return scale2D(img,target_size_y,target_size_x,order=3,mode='nearest',cval=0.0,prefilter=True)
+    else:
+        return scale2D(img,target_size_y,target_size_x,order=0,mode='nearest',cval=0.0,prefilter=True)
+    
 def scale_A_to_B(A,B):
     assert(len(A.shape)==2)
     assert(len(B.shape)==2)
@@ -450,8 +459,11 @@ def scale_A_to_B(A,B):
     if np.array_equal(A.shape,B.shape):
         return A
 
-    return scale2D(A,B.shape[0],B.shape[1],order=3,mode='nearest',cval=0.0,prefilter=True)
-
+    if not RUNTIME_PARAMS['multiclass']:
+        return scale2D(A,B.shape[0],B.shape[1],order=3,mode='nearest',cval=0.0,prefilter=True)
+    else:
+        return scale2D(A,B.shape[0],B.shape[1],order=0,mode='nearest',cval=0.0,prefilter=True)
+    
 def read_and_normalize_data(DIRS, test=False):
     DIR,fatimg,waterimg,dixon_345img,dixon_575img,maskimg = load_data(DIRS, test)
     if len(DIR)<1:
@@ -459,11 +471,20 @@ def read_and_normalize_data(DIRS, test=False):
 
     DIR_new,fatimg_new,waterimg_new,dixon_345img_new,dixon_575img_new,maskimg_new=[],[],[],[],[],[]
     for imgi in range(0,len(DIR)):
-        if test:
-            assert(np.array_equal(np.unique(maskimg[imgi]),[0,1]) or np.array_equal(np.unique(maskimg[imgi]),[0])) 
+        if not RUNTIME_PARAMS['multiclass']:
+            if test:
+                assert(np.array_equal(np.unique(maskimg[imgi]),[0,1]) or np.array_equal(np.unique(maskimg[imgi]),[0])) 
+            else:
+                assert(np.array_equal(np.unique(maskimg[imgi]),[0,1]))
         else:
-            assert(np.array_equal(np.unique(maskimg[imgi]),[0,1]))
-
+            valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
+            if test:
+                assert(np.array_equal(np.unique(maskimg[imgi]),valid_values) or np.array_equal(np.unique(maskimg[imgi]),[0])) 
+            else:
+               if not np.array_equal(np.unique(maskimg[imgi]),valid_values):
+                   print(f'EXCLUDE: np.unique(maskimg[imgi])={np.unique(maskimg[imgi])} for {DIRS[imgi]}')
+                   continue
+        
         for slice in range(0,fatimg[imgi].shape[2]):
             mask_validity=valid_mask(scale_to_target(maskimg[imgi][:,:,slice]),DIR[imgi]+'^slice'+str(slice))
             TO_ADD=False
@@ -491,10 +512,21 @@ def read_and_normalize_data(DIRS, test=False):
                 dixon_345slice=scale_to_target(dixon_345img[imgi][:,:,slice])
                 dixon_575slice=scale_to_target(dixon_575img[imgi][:,:,slice])
 
-                if test:
-                    assert(np.array_equal(np.unique(maskslice),[0,1]) or np.array_equal(np.unique(maskslice),[0])) 
+                if not RUNTIME_PARAMS['multiclass']:
+                    if test:
+                        assert(np.array_equal(np.unique(maskslice),[0,1]) or np.array_equal(np.unique(maskslice),[0])) 
+                    else:
+                        assert(np.array_equal(np.unique(maskslice),[0,1]))
                 else:
-                    assert(np.array_equal(np.unique(maskslice),[0,1]))
+                    valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
+                    if test:
+                        if not np.array_equal(np.unique(maskslice),valid_values) and not np.array_equal(np.unique(maskslice),[0]): 
+                           print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
+                           continue
+                    else:
+                       if not np.array_equal(np.unique(maskslice),valid_values):
+                           print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
+                           continue
 
                 fatimg_new.append(fatslice)
                 waterimg_new.append(waterslice)
@@ -574,15 +606,22 @@ def read_and_normalize_data(DIRS, test=False):
     return DIR,data,maskimg
 
 def MYNET(input_size = [target_size_y,target_size_x,2 if simplerModel else 3]):
-    # model = unet(input_size=input_size)
-    # model = build_refinenet(input_size, 1, resnet_weights = None, frontend_trainable = True)
-
-#    model = ternausNet16_tweaked(input_size=input_size, dropout=True, batch_norm=False, pretrained=True)
-    model = ternausNet16_tweaked(input_size=input_size, dropout=True, batch_norm=False, pretrained=True)
+    if RUNTIME_PARAMS['multiclass']:
+        activation='softmax'
+        RUNTIME_PARAMS['classes']=17+1 if RUNTIME_PARAMS['al']=='calf' else 31+1
+        loss=sm.losses.cce_dice_loss
+        metrics=[sm.metrics.f1_score]
+    else:
+        activation='sigmoid'
+        RUNTIME_PARAMS['classes']=1
+        loss=sm.losses.bce_dice_loss
+        metrics=[sm.metrics.f1_score]
+    
+    model = sm.Unet(input_shape=input_size, classes=RUNTIME_PARAMS['classes'], activation=activation)
 
     opt = Adam(lr = RUNTIME_PARAMS['lr'], amsgrad=False)
     print(opt)
-    model.compile(optimizer = opt, loss = my_losses.DiceLoss, metrics = ['accuracy'])
+    model.compile(optimizer = opt, loss=loss, metrics=metrics)
     return model
 
 def calc_dice(test_id,test_mask,preds):
@@ -806,38 +845,48 @@ RUNTIME_PARAMS['lr_stage']=1
 
 def MyLRscheduler(epoch, current_lr):
     new_lr=float(RUNTIME_PARAMS['lr'])
-    print('Epoch %d, learning rate %.1e'%(epoch+1,new_lr))
+    print('\nStarting epoch %d, learning rate %.1e'%(epoch+1,new_lr))
     return new_lr
 
 class MyEarlyStopping(Callback):
+    def __init__(self,model,bestweightsfile):
+        self.model=model
+        self.bestweightsfile=bestweightsfile
+        
     def on_train_begin(self,logs):
         self.val_losses=[]
 
     def on_epoch_end(self, epoch, logs):
+        assert(epoch==len(self.val_losses))
+
         val_loss = logs.get('val_loss')
         self.val_losses.append(val_loss)
 
         min_loss_epoch=np.argmin(self.val_losses)
-        print('Min loss %.4f at epoch %d'%(self.val_losses[min_loss_epoch],min_loss_epoch+1))
+        
+        if min_loss_epoch==len(self.val_losses)-1:
+            print('Loss reduced to %.4f, saving weights'%(val_loss))
+            self.model.save_weights(self.bestweightsfile,overwrite=True,save_format='h5')
 
-        val_accuracy = logs.get('val_accuracy')
-        if val_accuracy is None:
-            val_accuracy = logs.get('val_acc')
+        if not RUNTIME_PARAMS['multiclass']: 
+            val_accuracy = logs.get('val_accuracy')
+            if val_accuracy is None:
+                val_accuracy = logs.get('val_acc')
 
-        if epoch==30 and val_accuracy<0.90:
-            print("Training seems to be not going well, going to stop it now")
-            self.model.stop_training = True
+            if epoch+1==30 and val_accuracy<0.90:
+                print("Training seems to be not going well, going to stop it now")
+                self.model.stop_training = True
 
-        if False and epoch>min_loss_epoch+50:
+        if False and epoch>=min_loss_epoch+5:
             if RUNTIME_PARAMS['lr_stage']==1:
                 RUNTIME_PARAMS['lr_stage']=2
                 RUNTIME_PARAMS['lr']/=10
                 RUNTIME_PARAMS['lr_change_epoch']=epoch
-            elif epoch>RUNTIME_PARAMS['lr_change_epoch']+10:
+            elif epoch>=RUNTIME_PARAMS['lr_change_epoch']+5:
                 print('Not improved for n epochs, stopping early')
                 self.model.stop_training = True
 
-        if epoch>min_loss_epoch+50:
+        if epoch>=min_loss_epoch+5:
             print('Not improved for n epochs, stopping early')
             self.model.stop_training = True
 
@@ -906,6 +955,9 @@ def MyGenerator(image_generator,mask_generator,data_gen_args):
                         plt.show()
                     batch_images[batch_i,:,:,ch_i]=noisy('gauss',batch_images[batch_i,:,:,ch_i],strength=strength)
 
+        if RUNTIME_PARAMS['multiclass']:
+            mask_images=tf.one_hot(mask_images.squeeze(axis=3),RUNTIME_PARAMS['classes'])
+
         yield batch_images, mask_images
 
 def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
@@ -946,16 +998,6 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         common_subjects=np.intersect1d(train_subjects, valid_subjects, assume_unique=False, return_indices=False)
         assert(common_subjects.size==0)
 
-        TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.weights'
-
-        callbacks = [
-            MyEarlyStopping(),
-            LearningRateScheduler(MyLRscheduler),
-            #ModelCheckpoint('model.{epoch:02d}.hdf5', monitor='loss', verbose=0, save_best_only=False, save_weights_only=False),
-            ModelCheckpoint(TEMP_WEIGHTS_FILE, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=True),
-            #TensorBoard(log_dir=INSTALL_DIR,histogram_freq=0,write_graph=False,write_images=False)
-        ]
-
         print('batch_size: %d'%(batch_size))
         
         data_gen_args = dict(
@@ -994,14 +1036,24 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         retry=0
         while True:
             model=MYNET()
+            model.summary()
+            
+            TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'weights.h5'
+
+            callbacks = [
+                MyEarlyStopping(model,TEMP_WEIGHTS_FILE),
+                LearningRateScheduler(MyLRscheduler),
+                #TensorBoard(log_dir=INSTALL_DIR,histogram_freq=0,write_graph=False,write_images=False)
+            ]
+
             history=model.fit_generator(MyGenerator(image_generator,mask_generator,data_gen_args), 
                     steps_per_epoch=steps_per_epoch, 
-                    epochs=5 if MY_PC else 5000//1, 
-                    shuffle=True, verbose=2, validation_data=(X_valid_this, y_valid_this), 
+                    epochs=5000, 
+                    shuffle=True, verbose=2, validation_data=(X_valid_this, tf.one_hot(y_valid_this.squeeze(axis=3),RUNTIME_PARAMS['classes'])), 
                     callbacks=callbacks)
-
-            if MY_PC: break
-
+            
+            if RUNTIME_PARAMS['multiclass']: break
+            
             if 'val_accuracy' in history.history:
                 val_accuracy=history.history['val_accuracy']
             else:
@@ -1012,6 +1064,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
             retry+=1
             print('Retrying training [retry=%d]'%(retry))
+            os.remove(TEMP_WEIGHTS_FILE)
 
         model.load_weights(TEMP_WEIGHTS_FILE)
 
@@ -1028,26 +1081,6 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         p=model.predict(X_valid_this,batch_size=batch_size, verbose=1)
         DSCs,cutoffs=calc_dice(DIR_valid,y_valid_this,p)
 
-        # TTA analysis
-        if True:
-            print('*** TTA analysis ***')
-            print('0. mean DSC [val] %.4f ± %.4f [n=%d] best_cutoff %f'%(np.mean(DSCs),np.std(DSCs),len(DSCs),np.mean(cutoffs)))
-            p1=model.predict(X_valid_this[:,:,::-1,:],batch_size=batch_size, verbose=0)
-            DSCs1,cutoffs1=calc_dice(DIR_valid,y_valid_this[:,:,::-1,:],p1)
-            print('1. mean DSC [val] %.4f ± %.4f [n=%d] best_cutoff %f'%(np.mean(DSCs1),np.std(DSCs1),len(DSCs1),np.mean(cutoffs1)))
-            p2=model.predict(X_valid_this[:,::-1,:,:],batch_size=batch_size, verbose=0)
-            DSCs2,cutoffs2=calc_dice(DIR_valid,y_valid_this[:,::-1,:,:],p2)
-            print('2. mean DSC [val] %.4f ± %.4f [n=%d] best_cutoff %f'%(np.mean(DSCs2),np.std(DSCs2),len(DSCs2),np.mean(cutoffs2)))
-
-            p_tta=(p+p1[:,:,::-1,:]+p2[:,::-1,:,:])/3
-            DSCs_tta,cutoffs_tta=calc_dice(DIR_valid,y_valid_this,p_tta)
-            print('TTA. mean DSC [val] %.4f ± %.4f [n=%d] best_cutoff %f'%(np.mean(DSCs_tta),np.std(DSCs_tta),len(DSCs_tta),np.mean(cutoffs_tta)))
-            
-            print('')
-
-            if 0:
-                plt.subplot(151);plt.imshow(y_valid_this[0,:,:,0],cmap='gray');plt.subplot(152);plt.imshow(p[0,:,:,0],cmap='gray');plt.subplot(153);plt.imshow(p1[0,:,::-1,0],cmap='gray');plt.subplot(154);plt.imshow(p2[0,::-1,:,0],cmap='gray');plt.subplot(155);plt.imshow(p_tta[0,:,:,0],cmap='gray');plt.show()
-
         if fold==0:
             val_DSCs = DSCs
             val_cutoffs = cutoffs
@@ -1057,11 +1090,11 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             val_cutoffs.extend(cutoffs)
             val_losses.append(np.min(history.history['val_loss']))
 
-        print('batch_size',batch_size)
         print('inner fold',fold+1)
-        print('mean DSC [val] %.4f ± %.4f [n=%d]'%(np.mean(val_DSCs),np.std(val_DSCs),len(val_DSCs)))
+        print('batch_size',batch_size)
+        print('mean DSC [val] %.4f +- %.4f [n=%d]'%(np.mean(val_DSCs),np.std(val_DSCs),len(val_DSCs)))
         print('range DSC [val] %.4f - %.4f'%(np.min(val_DSCs),np.max(val_DSCs)))
-        print('mean loss [val] %.4f ± %.4f'%(np.mean(val_losses),np.std(val_losses)))
+        print('mean loss [val] %.4f +- %.4f'%(np.mean(val_losses),np.std(val_losses)))
         print('range loss [val] %.4f - %.4f'%(np.min(val_losses),np.max(val_losses)))
         print('mean best_cutoff %f'%(np.mean(val_cutoffs)))
 
@@ -1125,31 +1158,6 @@ def test(test_DIRS):
     DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
     return DSCs
-
-def read_calf_labels(filename):
-    with open(filename,'rt') as f:
-        lines=f.readlines()
-
-    for i in range(0,len(lines)):
-        lines[i]=lines[i].strip()
-
-        while ('  ' in lines[i]):
-            lines[i]=lines[i].replace('  ',' ')
-        
-        lines[i]=lines[i].replace(' ',',')
-        
-    strio = StringIO('\n'.join(lines))
-
-    calf_labels=pd.read_csv(strio,comment='#',header=None,names=['label','r','g','b','a','vis','meshvis','label_description'],quotechar='"',index_col=False)
-
-    temp=calf_labels.label_description.values
-
-    for i in range(0,len(temp)):
-        temp[i]=temp[i].replace(',',' ').lower()
-
-    calf_labels.label_description=temp
-
-    return calf_labels
 
 def main(al,inputdir,widget):
     RUNTIME_PARAMS['al']=al
@@ -1224,7 +1232,7 @@ def main(al,inputdir,widget):
 
                     #if MY_PC and len(DIRS)>20: break
 
-        #if MY_PC: DIRS=DIRS[:20]
+        #DIRS=DIRS[:20]
         print('%d cases found'%(len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir']=='train':
@@ -1243,7 +1251,7 @@ def main(al,inputdir,widget):
 
                 np.random.shuffle(train_DIRS)
 
-                train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD=False)
+                train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD=True)
         elif RUNTIME_PARAMS['inputdir']=='validate':
             print('Validate mode')
             print('Use this mode to perform nested cross validation over all the available training data')
@@ -1290,7 +1298,7 @@ def main(al,inputdir,widget):
                 print('batch_size',batch_size)
                 print('difficult case %d or %d'%(case_i,len(difficult_cases)))
                 if len(DSCs)>0:
-                    print('mean DSC %.4f ± %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
+                    print('mean DSC %.4f +- %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
                     print('range DSC %.4f - %.4f'%(np.min(DSCs),np.max(DSCs)))
 
             if True:
@@ -1344,7 +1352,7 @@ def main(al,inputdir,widget):
 
                     print('batch_size',batch_size)
                     print('outer fold',fold+1)
-                    print('mean DSC %.4f ± %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
+                    print('mean DSC %.4f +- %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
                     print('range DSC %.4f - %.4f'%(np.min(DSCs),np.max(DSCs)))
 
                     fold+=1

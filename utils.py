@@ -42,11 +42,10 @@ def scale3D(inmat,targetsize_z,targetsize_y,targetsize_x,order=3,mode='constant'
 
 def saveTrainingMetrics(history,label,filename):
     plt_x=list(range(1,len(history.history['loss'])+1))
-    fig,_ax=plt.subplots(nrows=1,ncols=2)
+    fig=plt.figure(figsize=(10, 6), dpi=100)
     plt.subplot(121)
     plt.plot(plt_x,history.history['loss'],label='loss')
     plt.plot(plt_x,history.history['val_loss'],label='val_loss')
-    plt.ylim(0,0.5)
     plt.xlabel('epoch')
     plt.legend()
     plt.title(label)
