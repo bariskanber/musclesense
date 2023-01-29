@@ -25,11 +25,10 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, Callback, LearningRateScheduler
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-import my_losses 
-from utils import numpy_dice_coefficient, scale2D, saveTrainingMetrics
-from nifti_tools import save_nifti
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
 from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
+from utils import numpy_dice_coefficient, scale2D, saveTrainingMetrics
+from nifti_tools import save_nifti
 from noisy import noisy
 
 import segmentation_models as sm
@@ -41,7 +40,7 @@ MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
 if MY_PC:
     import matplotlib.pyplot as plt
 
-DEBUG=False
+DEBUG=True
 llshortdict={'thigh':'th','calf':'cf'}
 
 scale_down_factor=1
@@ -169,6 +168,8 @@ def checkDixonImage(dixon_img):
     
 def load_BFC_image(filename,test):
         if 1 or not test or RUNTIME_PARAMS['al']=='calf' or simplerModel:
+            if not os.path.exists(filename):
+                raise Exception(f'ERROR: the following file does not exist {filename}')
             nibobj=nib.load(filename)
             return nibobj, nibobj.get_data()
 
@@ -184,7 +185,7 @@ def load_BFC_image(filename,test):
         return nibobj, nibobj.get_data()
         
 def load_case_base(inputdir,DIR,test=False):
-    print('load_case',DIR)
+    if DEBUG: print('load_case',DIR)
     TK=DIR.split('^')
     assert(len(TK)>=2)
     ll=TK[0]
@@ -193,12 +194,18 @@ def load_case_base(inputdir,DIR,test=False):
     if 'Amy_GOSH' in DIR:
         filename=glob.glob(os.path.join(DIR,'*DIXON_F.nii*'))[0]
     elif inputdir!='train' and inputdir!='validate':
-        filename=glob.glob(os.path.join(DIR,'fat.nii*'))[0]
+        pattern=os.path.join(DIR,'fat.nii*')
+        files=glob.glob(pattern)
+        if len(files)<1:
+            print(f'ERROR: No files found matching {pattern}')
+            assert(False)
+        filename=files[0]
     else:
         filename=os.path.join(DIR,'ana/fatfraction/'+ll+'/fat.nii.gz')
         if not os.path.exists(filename):
             filename=os.path.join(DIR,'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
 
+    if DEBUG: print('loading fat image')
     fatimgobj,fatimg=load_BFC_image(filename,test)
 
     numvox=np.product(fatimg.shape)
@@ -206,6 +213,7 @@ def load_case_base(inputdir,DIR,test=False):
         fatimg*=0    
         raise Exception('Failed QC test '+DIR)
 
+    if DEBUG: print('water image')
     if simplerModel:
         waterimg=fatimg*0
     else:
@@ -222,6 +230,7 @@ def load_case_base(inputdir,DIR,test=False):
         if not np.array_equal(fatimgobj.header.get_zooms(),waterimgobj.header.get_zooms()):
             raise Exception('Fat and water image resolutions are different for '+DIR)
 
+    if DEBUG: print('loading DIXON 345ms image')
     if simplerModel:
         dixon_345img=fatimg*0
     else:
@@ -320,6 +329,7 @@ def load_case_base(inputdir,DIR,test=False):
             assert checkDixonImage(dixon_575img), dixfile[0]+' may be a phase image'
 
     # Mask selection (consider not using _af which are poor masks)
+    if DEBUG: print('selecting mask')
     if 'brcalskd' in DIR:
         filename=os.path.join(DIR,'roi/Dixon345_'+llshortdict[ll]+'_uk_3.nii.gz')
     elif 'hypopp' in DIR:
@@ -361,7 +371,8 @@ def load_case_base(inputdir,DIR,test=False):
 
     #if not os.path.exists(filename):
     #    filename=None
-
+    
+    if DEBUG: print('loading mask')
     if filename is None:
         maskimg=np.zeros(fatimg.shape,dtype=np.uint8)
     else:
@@ -377,6 +388,7 @@ def load_case_base(inputdir,DIR,test=False):
     if ll=='calf' and DIR=='ibmcmt_p5/p5-068': maskimg[:,:,5]=0
     if ll=='calf' and DIR=='brcalskd/BRCALSKD_002C': maskimg[:,:,6]=0
 
+    if DEBUG: print('Converting/standardising mask')
     if not RUNTIME_PARAMS['multiclass']:
         if filename is not None and not convertMRCCentreMaskToBinary(DIR,ll,maskimg):
             raise Exception('convertMRCCentreMaskToBinary returned False')
@@ -490,7 +502,7 @@ def read_and_normalize_data(DIRS, test=False):
             TO_ADD=False
             if mask_validity==MASK_VALIDITY_VALID:
                 TO_ADD=True
-            elif mask_validity==MASK_VALIDITY_SINGLESIDED:
+            elif mask_validity==MASK_VALIDITY_SINGLESIDED and not RUNTIME_PARAMS['multiclass']:
                 half_size=maskimg[imgi].shape[0]//2
                 if valid_mask(scale_to_target(maskimg[imgi][:half_size,:,slice]),DIR[imgi]+'^slice'+str(slice)+'^side1')==MASK_VALIDITY_VALID: 
                     for img_it in (fatimg,waterimg,dixon_345img,dixon_575img,maskimg):
@@ -617,7 +629,7 @@ def MYNET(input_size = [target_size_y,target_size_x,2 if simplerModel else 3]):
         loss=sm.losses.bce_dice_loss
         metrics=[sm.metrics.f1_score]
     
-    model = sm.Unet(input_shape=input_size, classes=RUNTIME_PARAMS['classes'], activation=activation)
+    model = sm.Unet('resnet34', encoder_weights='imagenet', input_shape=input_size, classes=RUNTIME_PARAMS['classes'], activation=activation)
 
     opt = Adam(lr = RUNTIME_PARAMS['lr'], amsgrad=False)
     print(opt)
@@ -681,19 +693,19 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
     print('Saving results')
     for i in range(0,preds.shape[0]):
         DIR=test_id[i]
-        DSCs,cutoffs=calc_dice(DIR,np.squeeze(data_mask[i]),preds[i])
-        assert(len(DSCs) in [0,1])
+        #DSCs,cutoffs=calc_dice(DIR,np.squeeze(data_mask[i]),preds[i])
+        #assert(len(DSCs) in [0,1])
 
-        if len(DSCs)==1:
-            results_DSC_file='results_DSC_%s_%s.csv'%(RUNTIME_PARAMS['inputdir'].replace('/','_'),RUNTIME_PARAMS['al'])
-            if 'print_scores_num_calls' not in RUNTIME_PARAMS:
-                RUNTIME_PARAMS['print_scores_num_calls']=0
-                with open(results_DSC_file,'wt') as outfile:
-                    outfile.write('id,DSC,best_cutoff\n')
+        #if len(DSCs)==1:
+        #    results_DSC_file='results_DSC_%s_%s.csv'%(RUNTIME_PARAMS['inputdir'].replace('/','_'),RUNTIME_PARAMS['al'])
+        #    if 'print_scores_num_calls' not in RUNTIME_PARAMS:
+        #        RUNTIME_PARAMS['print_scores_num_calls']=0
+        #        with open(results_DSC_file,'wt') as outfile:
+        #            outfile.write('id,DSC,best_cutoff\n')
 
-            RUNTIME_PARAMS['print_scores_num_calls']+=1
-            with open(results_DSC_file,'at') as outfile:
-                outfile.write('%s,%f,%f\n'%(DIR,DSCs[0],cutoffs[0]))
+        #    RUNTIME_PARAMS['print_scores_num_calls']+=1
+        #    with open(results_DSC_file,'at') as outfile:
+        #        outfile.write('%s,%f,%f\n'%(DIR,DSCs[0],cutoffs[0]))
 
         TK=DIR.split('^')
         assert(len(TK)==3)
@@ -729,93 +741,20 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
                     fatfilename=os.path.join(DIR,'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
 
             nibobj=nib.load(fatfilename)
-            maskimg=np.zeros((nibobj.get_data().shape[0],nibobj.get_data().shape[1],nibobj.get_data().shape[2]),dtype=np.float32)
-
             nibobj_std=nib.load(fatfilename)
-            maskimg_std=np.zeros((nibobj_std.get_data().shape[0],nibobj_std.get_data().shape[1],nibobj_std.get_data().shape[2]),dtype=np.float32)
+            shape=nibobj.get_data().shape[0:3]
+            maskimg=np.zeros(shape,dtype=np.float32)
+            maskimg_std=np.zeros(shape,dtype=np.float32)
 
         assert(slice>=0)
         assert(slice<maskimg.shape[2])
 
-        img_to_save=scale2D(preds[i],maskimg.shape[0],maskimg.shape[1])
-        std_img_to_save=scale2D(std_preds[i],maskimg.shape[0],maskimg.shape[1])
-
-        if simplerModel:
-            img_to_save-=std_img_to_save*2
-    
-            PMAP_factor=np.sum(img_to_save[img_to_save<=0.5])/np.sum(img_to_save[img_to_save>0.5])
-            entropy=skimage.measure.shannon_entropy(img_to_save)
-
-            img_to_save[img_to_save>0.5]=1
-            img_to_save[img_to_save<=0.5]=0
-
-            from scipy.ndimage.morphology import binary_dilation, binary_erosion
-            #img_to_save=binary_erosion(img_to_save).astype(img_to_save.dtype)
-            #img_to_save=binary_erosion(img_to_save).astype(img_to_save.dtype)
-            #img_to_save=binary_erosion(img_to_save).astype(img_to_save.dtype)
-
-            discard=0
-
-            with open(filename.replace('.nii.gz','-report.txt'),'wt' if slice==0 else 'at') as outtextfile:
-                if slice==0: 
-                    outtextfile.write('Musclesense version 0.0.1\n')
-                    outtextfile.write('Copyright 2020, Centre for Medical Image Computing, University College London\n\n')
-                    outtextfile.write('slice\tpatch\tarea\tsolidity\teuler_number\tinv_convexity\tPMAP_factor\tentropy\n')
-
-                labels,num_labels=skimage.measure.label(img_to_save,return_num=True)
-                #print('slice',slice,'num_detected',num_labels)
-
-                obj3D_props=skimage.measure.regionprops(labels,intensity_image=img_to_save)
-
-                max_area=None
-                for i in range(0,len(obj3D_props)):
-                    convex_perimeter=skimage.measure.perimeter(obj3D_props[i]['convex_image'])
-                    perimeter=skimage.measure.perimeter(obj3D_props[i]['image'])
-                    inv_convexity=perimeter/convex_perimeter
-
-                    #print(i,obj3D_props[i]['area'],obj3D_props[i]['solidity'],obj3D_props[i]['euler_number'],inv_convexity)
-                    outtextfile.write('%d\t%d\t%f\t%f\t%f\t%f\t%f\t%f\n'%(slice,i,obj3D_props[i]['area'],obj3D_props[i]['solidity'],obj3D_props[i]['euler_number'],inv_convexity,PMAP_factor,entropy))
-
-                    if max_area is None or max_area<obj3D_props[i]['area']:
-                        max_area=obj3D_props[i]['area']
-                        max_areai=i
-
-                #plt.imshow(img_to_save,cmap='gray')
-                #plt.show()
-
-                for i in range(0,len(obj3D_props)):
-                    if obj3D_props[i]['area']<=max_area*0.50:
-                        img_to_save[labels==obj3D_props[i].label]=0
-                    else:
-                        #if obj3D_props[i]['solidity']<0.8: discard+=1 # solidity: Ratio of pixels in the region to pixels of the convex hull image
-                        #if ll=='calf' and obj3D_props[i]['solidity']>0.9: discard+=1
-                        #if obj3D_props[max_areai]['euler_number']<=-20: discard+=1
-
-                        convex_perimeter=skimage.measure.perimeter(obj3D_props[i]['convex_image'])
-                        perimeter=skimage.measure.perimeter(obj3D_props[i]['image'])
-                        inv_convexity=perimeter/convex_perimeter
-                        #if inv_convexity<1.3 or inv_convexity>=3.0:
-                        #    discard+=1
-
-                if num_labels>0 and obj3D_props[max_areai]['euler_number']<=-20:
-                        discard+=1
-
-        #        if PMAP_factor>=0.05: discard+=1
-
-                if num_labels>10: discard+=1
-                
-                #discard entropy>16?
-
-                if discard>0:
-                    outtextfile.write('Segmentation of slice %d has been discarded, %d issue(s) were found\n'%(slice,discard))
-                    img_to_save*=0
-
-                #plt.imshow(img_to_save,cmap='gray')
-                #plt.show()
-
-            #img_to_save=binary_dilation(img_to_save).astype(img_to_save.dtype)
-            #img_to_save=binary_dilation(img_to_save).astype(img_to_save.dtype)
-            #img_to_save=binary_dilation(img_to_save).astype(img_to_save.dtype)
+        if RUNTIME_PARAMS['multiclass']:
+            img_to_save=scale2D(np.argmax(preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
+            std_img_to_save=scale2D(np.argmax(std_preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
+        else:
+            img_to_save=scale2D(preds[i],maskimg.shape[0],maskimg.shape[1])
+            std_img_to_save=scale2D(std_preds[i],maskimg.shape[0],maskimg.shape[1])
 
         maskimg[:,:,slice]=img_to_save
         maskimg_std[:,:,slice]=std_img_to_save
@@ -826,27 +765,13 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
         if DEBUG: print('Saving '+filename_std+' (slice %d)'%(slice))
         save_nifti(maskimg_std,nibobj_std.affine,nibobj_std.header,filename_std)
 
-        NUM_SLICES=maskimg.shape[2]
-
-        if simplerModel and slice==NUM_SLICES-1:
-            NUM_FAILED=0
-            for i in range(0,NUM_SLICES):
-                if not np.any(np.nonzero(maskimg[:,:,i,0])):
-                    NUM_FAILED+=1
-
-            if NUM_FAILED/float(NUM_SLICES)>=0.9:
-                os.remove(filename)
-                os.remove(filename_std)
-                with open(filename.replace('.nii.gz','-report.txt'),'at') as outtextfile:
-                    outtextfile.write('\nEither the input file(s) or the output segmentation has failed quality control and the segmentation has been discarded. Please check your input file(s) and contact b.kanber@ucl.ac.uk if you need any assistance.\n')                    
-
-RUNTIME_PARAMS['lr']=1E-4
+RUNTIME_PARAMS['lr']=1E-3
 RUNTIME_PARAMS['lr_stage']=1
 
-def MyLRscheduler(epoch, current_lr):
-    new_lr=float(RUNTIME_PARAMS['lr'])
-    print('\nStarting epoch %d, learning rate %.1e'%(epoch+1,new_lr))
-    return new_lr
+#def MyLRscheduler(epoch, current_lr):
+#    new_lr=float(RUNTIME_PARAMS['lr'])
+#    print('\nStarting epoch %d, learning rate %.1e'%(epoch+1,new_lr))
+#    return new_lr
 
 class MyEarlyStopping(Callback):
     def __init__(self,model,bestweightsfile):
@@ -868,26 +793,8 @@ class MyEarlyStopping(Callback):
             print('Loss reduced to %.4f, saving weights'%(val_loss))
             self.model.save_weights(self.bestweightsfile,overwrite=True,save_format='h5')
 
-        if not RUNTIME_PARAMS['multiclass']: 
-            val_accuracy = logs.get('val_accuracy')
-            if val_accuracy is None:
-                val_accuracy = logs.get('val_acc')
-
-            if epoch+1==30 and val_accuracy<0.90:
-                print("Training seems to be not going well, going to stop it now")
-                self.model.stop_training = True
-
-        if False and epoch>=min_loss_epoch+5:
-            if RUNTIME_PARAMS['lr_stage']==1:
-                RUNTIME_PARAMS['lr_stage']=2
-                RUNTIME_PARAMS['lr']/=10
-                RUNTIME_PARAMS['lr_change_epoch']=epoch
-            elif epoch>=RUNTIME_PARAMS['lr_change_epoch']+5:
-                print('Not improved for n epochs, stopping early')
-                self.model.stop_training = True
-
-        if epoch>=min_loss_epoch+5:
-            print('Not improved for n epochs, stopping early')
+        if epoch>=min_loss_epoch+10:
+            print('Not improved for 10 epochs, stopping early')
             self.model.stop_training = True
 
 class MyTrainingStatsCallback(Callback):
@@ -912,48 +819,6 @@ def MyGenerator(image_generator,mask_generator,data_gen_args):
                     fill_value=np.random.randint(-5,+6) # TODO: optimise
                     batch_images[batch_i,:,:,ch_i]=np.nan_to_num(batch_images[batch_i,:,:,ch_i],
                         nan=fill_value)
-
-        sub_illuminate=False
-        if sub_illuminate:
-            for batch_i in range(0,batch_images.shape[0]):
-                ch_i=np.random.randint(0,batch_images.shape[3])
-
-        transpose=True
-        if transpose:
-            for batch_i in range(0,batch_images.shape[0]):
-                if np.random.randint(0,2)==0:
-                    assert(mask_images.shape[3]==1)
-                    temp=scale_to_target(mask_images[batch_i,:,:,0].transpose())
-                    temp[temp>1]=1
-                    temp[temp<0]=0
-                    mask_images[batch_i,:,:,0]=temp
-                    for ch_i in range(0,batch_images.shape[3]):
-                        batch_images[batch_i,:,:,ch_i]=scale_to_target(batch_images[batch_i,:,:,ch_i].transpose())
-
-        channelMix=True
-        if channelMix:
-            for batch_i in range(0,batch_images.shape[0]):
-                if np.random.randint(0,50)==0:
-                    ch_i=np.random.randint(0,batch_images.shape[3])
-                    temp=batch_images[batch_i,:,:,ch_i].copy()
-                    for ch_i in range(0,batch_images.shape[3]):
-                        batch_images[batch_i,:,:,ch_i]=temp
-
-        add_noise=True
-        if add_noise:
-            for batch_i in range(0,batch_images.shape[0]):
-                strength=np.random.randint(0,5)/100.0 # TODO: optimise
-                for ch_i in range(0,batch_images.shape[3]):
-                    if 0 and ch_i==0 and MY_PC:
-                        from transp_imshow import transp_imshow
-                        plt.subplot(141);plt.imshow(batch_images[batch_i,:,:,ch_i],cmap='gray')
-                        plt.subplot(142);plt.imshow(noisy('gauss',batch_images[batch_i,:,:,ch_i],strength=strength),cmap='gray')
-                        plt.subplot(143);plt.imshow(mask_images[batch_i,:,:,ch_i],cmap='gray')
-                        ax=plt.subplot(144)
-                        plt.imshow(batch_images[batch_i,:,:,ch_i],cmap='gray')
-                        transp_imshow(ax,mask_images[batch_i,:,:,ch_i],cmap='winter')
-                        plt.show()
-                    batch_images[batch_i,:,:,ch_i]=noisy('gauss',batch_images[batch_i,:,:,ch_i],strength=strength)
 
         if RUNTIME_PARAMS['multiclass']:
             mask_images=tf.one_hot(mask_images.squeeze(axis=3),RUNTIME_PARAMS['classes'])
@@ -1038,18 +903,23 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             model=MYNET()
             model.summary()
             
-            TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'weights.h5'
+            TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.weights.h5'
 
             callbacks = [
                 MyEarlyStopping(model,TEMP_WEIGHTS_FILE),
-                LearningRateScheduler(MyLRscheduler),
+                #LearningRateScheduler(MyLRscheduler),
                 #TensorBoard(log_dir=INSTALL_DIR,histogram_freq=0,write_graph=False,write_images=False)
             ]
 
+            if RUNTIME_PARAMS['multiclass']:
+                validation_data=(X_valid_this, tf.one_hot(y_valid_this.squeeze(axis=3),RUNTIME_PARAMS['classes']))
+            else:
+                validation_data=(X_valid_this, y_valid_this.astype(np.float32))
+            
             history=model.fit_generator(MyGenerator(image_generator,mask_generator,data_gen_args), 
                     steps_per_epoch=steps_per_epoch, 
                     epochs=5000, 
-                    shuffle=True, verbose=2, validation_data=(X_valid_this, tf.one_hot(y_valid_this.squeeze(axis=3),RUNTIME_PARAMS['classes'])), 
+                    shuffle=True, verbose=2, validation_data=validation_data, 
                     callbacks=callbacks)
             
             if RUNTIME_PARAMS['multiclass']: break
@@ -1075,28 +945,31 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             os.remove(TEMP_WEIGHTS_FILE)
             trainingMetricsFilename='%s.%s.%d.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
 
-        saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
-
-        # validation
-        p=model.predict(X_valid_this,batch_size=batch_size, verbose=1)
-        DSCs,cutoffs=calc_dice(DIR_valid,y_valid_this,p)
-
-        if fold==0:
-            val_DSCs = DSCs
-            val_cutoffs = cutoffs
-            val_losses = [np.min(history.history['val_loss'])]
+        if RUNTIME_PARAMS['multiclass']:
+            pass
         else:
-            val_DSCs.extend(DSCs)
-            val_cutoffs.extend(cutoffs)
-            val_losses.append(np.min(history.history['val_loss']))
+            saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
 
-        print('inner fold',fold+1)
-        print('batch_size',batch_size)
-        print('mean DSC [val] %.4f +- %.4f [n=%d]'%(np.mean(val_DSCs),np.std(val_DSCs),len(val_DSCs)))
-        print('range DSC [val] %.4f - %.4f'%(np.min(val_DSCs),np.max(val_DSCs)))
-        print('mean loss [val] %.4f +- %.4f'%(np.mean(val_losses),np.std(val_losses)))
-        print('range loss [val] %.4f - %.4f'%(np.min(val_losses),np.max(val_losses)))
-        print('mean best_cutoff %f'%(np.mean(val_cutoffs)))
+            # validation
+            p=model.predict(X_valid_this,batch_size=batch_size, verbose=1)
+            DSCs,cutoffs=calc_dice(DIR_valid,y_valid_this,p)
+
+            if fold==0:
+                val_DSCs = DSCs
+                val_cutoffs = cutoffs
+                val_losses = [np.min(history.history['val_loss'])]
+            else:
+                val_DSCs.extend(DSCs)
+                val_cutoffs.extend(cutoffs)
+                val_losses.append(np.min(history.history['val_loss']))
+
+            print('inner fold',fold+1)
+            print('batch_size',batch_size)
+            print('mean DSC [val] %.4f +- %.4f [n=%d]'%(np.mean(val_DSCs),np.std(val_DSCs),len(val_DSCs)))
+            print('range DSC [val] %.4f - %.4f'%(np.min(val_DSCs),np.max(val_DSCs)))
+            print('mean loss [val] %.4f +- %.4f'%(np.mean(val_losses),np.std(val_losses)))
+            print('range loss [val] %.4f - %.4f'%(np.min(val_losses),np.max(val_losses)))
+            print('mean best_cutoff %f'%(np.mean(val_cutoffs)))
 
         # test
         p=model.predict(test_data,batch_size=batch_size, verbose=1)
@@ -1125,10 +998,11 @@ def test(test_DIRS):
     for fold in range(0,5):
         print('batch_size: %d'%(batch_size))
 
-        weightsfile='%s.%d.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'])
+        weightsfile='%s.%d.%s.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
         weightsfile=os.path.join(INSTALL_DIR,weightsfile)
 
         if not os.path.exists(weightsfile):
+            continue
             msg='Downloading '+os.path.basename(weightsfile)
             print(msg)
             if RUNTIME_PARAMS['widget'] is not None:
@@ -1144,18 +1018,19 @@ def test(test_DIRS):
         model.load_weights(weightsfile)
 
         p=model.predict(test_data,batch_size=batch_size, verbose=1)
+        p=np.expand_dims(p,axis=0)
         
         if fold==0:
             preds = p
         else:
-            preds = np.concatenate((preds,p),axis=3)
+            preds = np.concatenate((preds,p),axis=0)
 
-    mean_preds=np.nanmean(preds,axis=3)
-    std_preds=np.nanstd(preds,axis=3)
+    mean_preds=np.nanmean(preds,axis=0)
+    std_preds=np.nanstd(preds,axis=0)
 
     #mean_preds-=std_preds*1.96
-
-    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
+    
+#    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
     return DSCs
 
@@ -1163,7 +1038,7 @@ def main(al,inputdir,widget):
     RUNTIME_PARAMS['al']=al
     RUNTIME_PARAMS['inputdir']=inputdir
     RUNTIME_PARAMS['widget']=widget
-    RUNTIME_PARAMS['multiclass']=True # multiclass: individual muscle segmentation (vs. whole muscle)
+    RUNTIME_PARAMS['multiclass']=True # individual muscle segmentation (vs. whole muscle)
 
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text']='Calculating mask...'

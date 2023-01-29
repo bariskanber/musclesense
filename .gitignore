@@ -3,12 +3,10 @@ __pycache__*
 brcalskd/
 hypopp/
 ibmcmt_p*/
-.vscode/
-sample3ptDixonDataForJose*
+test_cases/
 tmp*
 *~
 .*
-checkpoint*
 local_notes.txt
 *.csv
 *.pdf
