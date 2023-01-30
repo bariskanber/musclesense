@@ -1,13 +1,14 @@
-*.weights*
-__pycache__*
 brcalskd/
 hypopp/
 ibmcmt_p*/
 test_cases/
+miniconda3/
+*.weights*
+__pycache__*
 tmp*
 *~
 .*
-local_notes.txt
+local_setup.sh
 *.csv
 *.pdf
 

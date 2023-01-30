@@ -40,7 +40,7 @@ MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
 if MY_PC:
     import matplotlib.pyplot as plt
 
-DEBUG=True
+DEBUG=False
 llshortdict={'thigh':'th','calf':'cf'}
 
 scale_down_factor=1
@@ -453,28 +453,28 @@ def load_data(DIRS, test=False):
 
     return list(filter(lambda x: x is not None,X_DIR)), list(filter(lambda x: x is not None,X_fatimg)), list(filter(lambda x: x is not None,X_waterimg)), list(filter(lambda x: x is not None,X_dixon_345img)), list(filter(lambda x: x is not None,X_dixon_575img)), list(filter(lambda x: x is not None,X_maskimg))
 
+def scale_to_size(img,target_size_y,target_size_x):
+    if RUNTIME_PARAMS['multiclass']:
+        return scale2D(img,target_size_y,target_size_x,order=0,mode='nearest')
+    else:
+        return scale2D(img,target_size_y,target_size_x,order=3,mode='nearest',prefilter=True)
+
 def scale_to_target(img):
     assert(len(img.shape)==2)
 
     if np.array_equal(img.shape,[target_size_y,target_size_x]):
         return img
 
-    if not RUNTIME_PARAMS['multiclass']:
-        return scale2D(img,target_size_y,target_size_x,order=3,mode='nearest',cval=0.0,prefilter=True)
-    else:
-        return scale2D(img,target_size_y,target_size_x,order=0,mode='nearest',cval=0.0,prefilter=True)
+    return scale_to_size(img,target_size_y,target_size_x)
     
 def scale_A_to_B(A,B):
     assert(len(A.shape)==2)
     assert(len(B.shape)==2)
 
-    if np.array_equal(A.shape,B.shape):
+    if np.array_equal(A.shape,B.shape): 
         return A
 
-    if not RUNTIME_PARAMS['multiclass']:
-        return scale2D(A,B.shape[0],B.shape[1],order=3,mode='nearest',cval=0.0,prefilter=True)
-    else:
-        return scale2D(A,B.shape[0],B.shape[1],order=0,mode='nearest',cval=0.0,prefilter=True)
+    return scale_to_size(A,B.shape[0],B.shape[1])
     
 def read_and_normalize_data(DIRS, test=False):
     DIR,fatimg,waterimg,dixon_345img,dixon_575img,maskimg = load_data(DIRS, test)
@@ -494,7 +494,7 @@ def read_and_normalize_data(DIRS, test=False):
                 assert(np.array_equal(np.unique(maskimg[imgi]),valid_values) or np.array_equal(np.unique(maskimg[imgi]),[0])) 
             else:
                if not np.array_equal(np.unique(maskimg[imgi]),valid_values):
-                   print(f'EXCLUDE: np.unique(maskimg[imgi])={np.unique(maskimg[imgi])} for {DIRS[imgi]}')
+                   if DEBUG: print(f'EXCLUDE: np.unique(maskimg[imgi])={np.unique(maskimg[imgi])} for {DIRS[imgi]}')
                    continue
         
         for slice in range(0,fatimg[imgi].shape[2]):
@@ -533,11 +533,11 @@ def read_and_normalize_data(DIRS, test=False):
                     valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
                     if test:
                         if not np.array_equal(np.unique(maskslice),valid_values) and not np.array_equal(np.unique(maskslice),[0]): 
-                           print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
+                           if DEBUG: print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
                            continue
                     else:
                        if not np.array_equal(np.unique(maskslice),valid_values):
-                           print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
+                           if DEBUG: print(f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
                            continue
 
                 fatimg_new.append(fatslice)
@@ -750,11 +750,11 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
         assert(slice<maskimg.shape[2])
 
         if RUNTIME_PARAMS['multiclass']:
-            img_to_save=scale2D(np.argmax(preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
-            std_img_to_save=scale2D(np.argmax(std_preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
+            img_to_save=scale_to_size(np.argmax(preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
+            std_img_to_save=scale_to_size(np.argmax(std_preds[i],axis=2),maskimg.shape[0],maskimg.shape[1])
         else:
-            img_to_save=scale2D(preds[i],maskimg.shape[0],maskimg.shape[1])
-            std_img_to_save=scale2D(std_preds[i],maskimg.shape[0],maskimg.shape[1])
+            img_to_save=scale_to_size(preds[i],maskimg.shape[0],maskimg.shape[1])
+            std_img_to_save=scale_to_size(std_preds[i],maskimg.shape[0],maskimg.shape[1])
 
         maskimg[:,:,slice]=img_to_save
         maskimg_std[:,:,slice]=std_img_to_save
@@ -812,13 +812,10 @@ def MyGenerator(image_generator,mask_generator,data_gen_args):
         batch_images=image_generator.next() # (batch_size, 320, 160, 3)
         mask_images=mask_generator.next() 
         
-        if data_gen_args['fill_mode']=='constant' and np.isnan(data_gen_args['cval']):
-            mask_images=np.nan_to_num(mask_images,nan=0)
-            for batch_i in range(0,batch_images.shape[0]):
-                for ch_i in range(0,batch_images.shape[3]):
-                    fill_value=np.random.randint(-5,+6) # TODO: optimise
-                    batch_images[batch_i,:,:,ch_i]=np.nan_to_num(batch_images[batch_i,:,:,ch_i],
-                        nan=fill_value)
+        valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
+        if not np.array_equal(np.unique(mask_images),valid_values):
+            print('ERROR: np.unique(mask_images)',np.unique(mask_images))
+            assert(False)
 
         if RUNTIME_PARAMS['multiclass']:
             mask_images=tf.one_hot(mask_images.squeeze(axis=3),RUNTIME_PARAMS['classes'])
@@ -867,14 +864,15 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         
         data_gen_args = dict(
 #            rotation_range=10,
-            width_shift_range=0.5,
-            height_shift_range=0.5,
+            #width_shift_range=0.5,
+            #height_shift_range=0.5,
 #            shear_range=10,
-            zoom_range=[0.5,1.3] if RUNTIME_PARAMS['al']=='thigh' else [0.5,1.3],
-            horizontal_flip=True,
-            vertical_flip = True,
-            fill_mode='constant', # wrap,reflect (nearest causes smudges)
-            cval=np.nan,
+            #zoom_range=[0.5,1.3] if RUNTIME_PARAMS['al']=='thigh' else [0.5,1.3],
+            #interpolation_order=0, 
+            #horizontal_flip = True,
+            #vertical_flip = True,
+            #fill_mode='constant', # wrap,reflect (nearest causes smudges)
+            #cval=np.nan,
         )
 
         #if True: data_gen_args = dict() # disable augmentation
@@ -901,7 +899,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         retry=0
         while True:
             model=MYNET()
-            model.summary()
+            if DEBUG: model.summary()
             
             TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.weights.h5'
 
@@ -973,18 +971,19 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
         # test
         p=model.predict(test_data,batch_size=batch_size, verbose=1)
+        p=np.expand_dims(p,axis=0)
         
         if fold==0:
             preds = p
         else:
-            preds = np.concatenate((preds,p),axis=3)
+            preds = np.concatenate((preds,p),axis=0)
         fold+=1
         if BREAK_OUT_AFTER_FIRST_FOLD:
             break
 
-    mean_preds=np.nanmean(preds,axis=3)
-    std_preds=np.nanstd(preds,axis=3)
-    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
+    mean_preds=np.nanmean(preds,axis=0)
+    std_preds=np.nanstd(preds,axis=0)
+#    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
     return DSCs
 
