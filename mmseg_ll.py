@@ -27,9 +27,8 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
 from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
-from utils import numpy_dice_coefficient, scale2D, saveTrainingMetrics
+from utils import numpy_dice_coefficient, scale2D
 from nifti_tools import save_nifti
-from noisy import noisy
 
 import segmentation_models as sm
 sm.set_framework('tf.keras')
@@ -39,12 +38,15 @@ MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
 
 if MY_PC:
     import matplotlib.pyplot as plt
+else:
+    import matplotlib as mpl
+    mpl.use('Agg')
+    import matplotlib.pyplot as plt
 
 DEBUG=False
 llshortdict={'thigh':'th','calf':'cf'}
 
 scale_down_factor=1
-simplerModel=False
 
 np.random.seed(0)
 
@@ -60,6 +62,10 @@ MODULE_NAME=os.path.basename(__file__)
 INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR',INSTALL_DIR)
 print('MODULE_NAME',MODULE_NAME)
+
+np.random.seed(42)
+tf.random.set_seed(42)
+random.seed(42)
 
 if False:
     with open('%s/.keras/keras.json'%(os.path.expanduser("~")),'rt') as json_file:
@@ -167,22 +173,22 @@ def checkDixonImage(dixon_img):
     return False
     
 def load_BFC_image(filename,test):
-        if 1 or not test or RUNTIME_PARAMS['al']=='calf' or simplerModel:
+        if 1 or not test or RUNTIME_PARAMS['al']=='calf':
             if not os.path.exists(filename):
                 raise Exception(f'ERROR: the following file does not exist {filename}')
             nibobj=nib.load(filename)
-            return nibobj, nibobj.get_data()
+            return nibobj, nibobj.get_fdata()
 
         BFCfilename=filename.replace('.nii.gz','-bfc.nii.gz')
         if os.path.exists(BFCfilename):
             nibobj=nib.load(BFCfilename)
-            return nibobj, nibobj.get_data()
+            return nibobj, nibobj.get_fdata()
 
         print('Bias correcting '+filename)
         os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/media/bkanber/WORK/mrtools/niftk-17.5.0/bin/ && /media/bkanber/WORK/mrtools/niftk-17.5.0/bin/niftkN4BiasFieldCorrection --sub 2 -i '%s' -o '%s'"%(filename,BFCfilename))
 
         nibobj=nib.load(BFCfilename)
-        return nibobj, nibobj.get_data()
+        return nibobj, nibobj.get_fdata()
         
 def load_case_base(inputdir,DIR,test=False):
     if DEBUG: print('load_case',DIR)
@@ -214,119 +220,108 @@ def load_case_base(inputdir,DIR,test=False):
         raise Exception('Failed QC test '+DIR)
 
     if DEBUG: print('water image')
-    if simplerModel:
-        waterimg=fatimg*0
+    if 'Amy_GOSH' in DIR:
+        filename=glob.glob(os.path.join(DIR,'*DIXON_W.nii*'))[0]
+    elif inputdir!='train' and inputdir!='validate':
+        filename=glob.glob(os.path.join(DIR,'water.nii*'))[0]
     else:
-        if 'Amy_GOSH' in DIR:
-            filename=glob.glob(os.path.join(DIR,'*DIXON_W.nii*'))[0]
-        elif inputdir!='train' and inputdir!='validate':
-            filename=glob.glob(os.path.join(DIR,'water.nii*'))[0]
-        else:
-            filename=os.path.join(DIR,'ana/fatfraction/'+ll+'/water.nii.gz')
-            if not os.path.exists(filename):
-                filename=os.path.join(DIR,'ana/fatfraction/'+llshortdict[ll]+'/water.nii.gz')
+        filename=os.path.join(DIR,'ana/fatfraction/'+ll+'/water.nii.gz')
+        if not os.path.exists(filename):
+            filename=os.path.join(DIR,'ana/fatfraction/'+llshortdict[ll]+'/water.nii.gz')
 
-        waterimgobj,waterimg=load_BFC_image(filename,test)
-        if not np.array_equal(fatimgobj.header.get_zooms(),waterimgobj.header.get_zooms()):
-            raise Exception('Fat and water image resolutions are different for '+DIR)
+    waterimgobj,waterimg=load_BFC_image(filename,test)
+    if not np.array_equal(fatimgobj.header.get_zooms(),waterimgobj.header.get_zooms()):
+        raise Exception('Fat and water image resolutions are different for '+DIR)
 
     if DEBUG: print('loading DIXON 345ms image')
-    if simplerModel:
-        dixon_345img=fatimg*0
+    
+    if inputdir!='train' and inputdir!='validate':
+        dixfile=glob.glob(os.path.join(DIR,'dixon345.nii*'))
     else:
-        if inputdir!='train' and inputdir!='validate':
-            dixfile=glob.glob(os.path.join(DIR,'dixon345.nii*'))
-        else:
-            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_345_'+ll+'.nii.gz')) # e.g. 1-0017-Dixon_TE_345_calf.nii.gz
-            if len(dixfile)==0:
-                dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz')) # e.g. 1-0017-Dixon_TE_345_cf.nii.gz
-            assert len(dixfile)==2, 'Failed len(dixfile)==2'
+        dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_345_'+ll+'.nii.gz')) # e.g. 1-0017-Dixon_TE_345_calf.nii.gz
+        if len(dixfile)==0:
+            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz')) # e.g. 1-0017-Dixon_TE_345_cf.nii.gz
+        assert len(dixfile)==2, 'Failed len(dixfile)==2'
 
-            id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_345_'+ll+'.nii.gz','').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_345_'+ll+'.nii.gz','').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            try:
-                id1=float(id1)
-                id2=float(id2)
-            except:
-                id1=str(id1)
-                id2=str(id2)
-            assert(id1!=id2)
+        id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_345_'+ll+'.nii.gz','').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_345_'+ll+'.nii.gz','').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        try:
+            id1=float(id1)
+            id2=float(id2)
+        except:
+            id1=str(id1)
+            id2=str(id2)
+        assert(id1!=id2)
 
-            if id1>id2: 
-                dixfile=dixfile[::-1]
+        if id1>id2: 
+            dixfile=dixfile[::-1]
 
-        dixon_345imgobj,dixon_345img=load_BFC_image(dixfile[0],test)
-        assert checkDixonImage(dixon_345img), dixfile[0]+' may be a phase image'
-        if not np.array_equal(fatimgobj.header.get_zooms(),dixon_345imgobj.header.get_zooms()):
-            raise Exception('Fat and dixon_345 image resolutions are different for '+DIR)
+    dixon_345imgobj,dixon_345img=load_BFC_image(dixfile[0],test)
+    assert checkDixonImage(dixon_345img), dixfile[0]+' may be a phase image'
+    if not np.array_equal(fatimgobj.header.get_zooms(),dixon_345imgobj.header.get_zooms()):
+        raise Exception('Fat and dixon_345 image resolutions are different for '+DIR)
 
-    if simplerModel:
-        dixon_460img=fatimg*0
+    if inputdir!='train' and inputdir!='validate':
+        dixfile=glob.glob(os.path.join(DIR,'dixon460.nii*'))
     else:
-        if inputdir!='train' and inputdir!='validate':
-            dixfile=glob.glob(os.path.join(DIR,'dixon460.nii*'))
-        else:
-            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_460_'+ll+'.nii.gz'))
-            if len(dixfile)==0:
-                dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz')) 
-            assert(len(dixfile)==2)
+        dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_460_'+ll+'.nii.gz'))
+        if len(dixfile)==0:
+            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz')) 
+        assert(len(dixfile)==2)
 
-            id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_460_'+ll+'.nii.gz','').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_460_'+ll+'.nii.gz','').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            try:
-                id1=float(id1)
-                id2=float(id2)
-            except:
-                id1=str(id1)
-                id2=str(id2)
-            assert(id1!=id2)
+        id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_460_'+ll+'.nii.gz','').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_460_'+ll+'.nii.gz','').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        try:
+            id1=float(id1)
+            id2=float(id2)
+        except:
+            id1=str(id1)
+            id2=str(id2)
+        assert(id1!=id2)
 
-            if id1>id2: 
-                dixfile=dixfile[::-1]
+        if id1>id2: 
+            dixfile=dixfile[::-1]
 
-        dixon_460imgobj,dixon_460img=load_BFC_image(dixfile[0],test)
-        #if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
-        #    raise Exception('Fat and dixon_460 image resolutions are different for '+DIR)
+    dixon_460imgobj,dixon_460img=load_BFC_image(dixfile[0],test)
+    #if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
+    #    raise Exception('Fat and dixon_460 image resolutions are different for '+DIR)
 
-        if 0 and dixfile[0]=='ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
-            pass
-        else:
-            assert checkDixonImage(dixon_460img), dixfile[0]+' may be a phase image'
-
-        fatimg=dixon_460img
-
-    if simplerModel:
-        dixon_575img=fatimg*0
+    if 0 and dixfile[0]=='ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
+        pass
     else:
-        if inputdir!='train' and inputdir!='validate':
-            dixfile=glob.glob(os.path.join(DIR,'dixon575.nii*'))
-        else:
-            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_575_'+ll+'.nii.gz'))
-            if len(dixfile)==0:
-                dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz')) 
-            assert(len(dixfile)==2)
+        assert checkDixonImage(dixon_460img), dixfile[0]+' may be a phase image'
 
-            id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_575_'+ll+'.nii.gz','').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_575_'+ll+'.nii.gz','').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
-            try:
-                id1=float(id1)
-                id2=float(id2)
-            except:
-                id1=str(id1)
-                id2=str(id2)
-            assert(id1!=id2)
+    fatimg=dixon_460img
 
-            if id1>id2: 
-                dixfile=dixfile[::-1]
+    if inputdir!='train' and inputdir!='validate':
+        dixfile=glob.glob(os.path.join(DIR,'dixon575.nii*'))
+    else:
+        dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_575_'+ll+'.nii.gz'))
+        if len(dixfile)==0:
+            dixfile=glob.glob(os.path.join(DIR,'nii/*-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz')) 
+        assert(len(dixfile)==2)
 
-        dixon_575imgobj,dixon_575img=load_BFC_image(dixfile[0],test)
-        #if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
-        #    raise Exception('Fat and dixon_575 image resolutions are different for '+DIR)
+        id1=os.path.basename(dixfile[0]).replace('-Dixon_TE_575_'+ll+'.nii.gz','').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        id2=os.path.basename(dixfile[1]).replace('-Dixon_TE_575_'+ll+'.nii.gz','').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz','').replace('-','.')
+        try:
+            id1=float(id1)
+            id2=float(id2)
+        except:
+            id1=str(id1)
+            id2=str(id2)
+        assert(id1!=id2)
 
-        if dixfile[0]=='ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
-            pass
-        else:
-            assert checkDixonImage(dixon_575img), dixfile[0]+' may be a phase image'
+        if id1>id2: 
+            dixfile=dixfile[::-1]
+
+    dixon_575imgobj,dixon_575img=load_BFC_image(dixfile[0],test)
+    #if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
+    #    raise Exception('Fat and dixon_575 image resolutions are different for '+DIR)
+
+    if dixfile[0]=='ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
+        pass
+    else:
+        assert checkDixonImage(dixon_575img), dixfile[0]+' may be a phase image'
 
     # Mask selection (consider not using _af which are poor masks)
     if DEBUG: print('selecting mask')
@@ -377,7 +372,7 @@ def load_case_base(inputdir,DIR,test=False):
         maskimg=np.zeros(fatimg.shape,dtype=np.uint8)
     else:
         maskimgobj=nib.load(filename)
-        maskimg=maskimgobj.get_data()
+        maskimg=np.asanyarray(maskimgobj.dataobj)
         if not np.array_equal(fatimgobj.header.get_zooms(),maskimgobj.header.get_zooms()):
             raise Exception('Fat and mask image resolutions are different for '+DIR)
 
@@ -397,7 +392,7 @@ def load_case_base(inputdir,DIR,test=False):
             pass
         elif ll=='thigh' and DIR in ['ibmcmt_p6/p6-008','hypopp/023_a','ibmcmt_p4/p4-027','ibmcmt_p4/p4-033','ibmcmt_p4/p4-062','ibmcmt_p4/p4-004','ibmcmt_p4/p4-046','brcalskd/BRCALSKD_028A','brcalskd/BRCALSKD_036C','ibmcmt_p2/p2-072','ibmcmt_p1/p1-014b','ibmcmt_p3/p3-067','ibmcmt_p3/p3-051','ibmcmt_p3/p3-011','ibmcmt_p2/p2-010','ibmcmt_p2/p2-041','ibmcmt_p4/p4-060']:
             pass
-        elif (inputdir=='train' or inputdir=='validate') and not simplerModel:
+        elif (inputdir=='train' or inputdir=='validate'):
             QQ=maskimg>0
             if np.sum(np.logical_and(fatimg[QQ]<10,waterimg[QQ]<10))>150:
                 if False:
@@ -573,20 +568,7 @@ def read_and_normalize_data(DIRS, test=False):
     dixon_575img = dixon_575img.reshape(dixon_575img.shape[0], dixon_575img.shape[1], dixon_575img.shape[2], 1)
     maskimg = maskimg.reshape(maskimg.shape[0], maskimg.shape[1], maskimg.shape[2], 1)
 
-    if simplerModel:
-        binimg=fatimg.copy()
-        for i in range(0,fatimg.shape[0]):
-            thisfatimg=fatimg[i].copy()
-            thisbinimg=binimg[i].copy()
-
-            cutoff=np.nanmax(thisfatimg)/5
-            thisbinimg[thisfatimg>cutoff]=1
-            thisbinimg[thisfatimg<=cutoff]=0
-
-            binimg[i]=thisbinimg
-        data=np.concatenate((fatimg,binimg),axis=3)
-    else:
-        data=np.concatenate((fatimg,dixon_345img,dixon_575img),axis=3)
+    data=np.concatenate((fatimg,dixon_345img,dixon_575img),axis=3)
 
     print('Data shape:', data.shape)
     print('Lesion mask shape:', maskimg.shape)
@@ -617,7 +599,7 @@ def read_and_normalize_data(DIRS, test=False):
 
     return DIR,data,maskimg
 
-def MYNET(input_size = [target_size_y,target_size_x,2 if simplerModel else 3]):
+def MYNET(input_size = [target_size_y,target_size_x,3]):
     if RUNTIME_PARAMS['multiclass']:
         activation='softmax'
         RUNTIME_PARAMS['classes']=17+1 if RUNTIME_PARAMS['al']=='calf' else 31+1
@@ -721,12 +703,12 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
         if slice>0:
             try:
                 nibobj=nib.load(filename)
-                maskimg=nibobj.get_data().astype(np.float32)
+                maskimg=nibobj.get_fdata().astype(np.float32)
             except:
                 print('Could not load '+filename)
             try:
                 nibobj_std=nib.load(filename_std)
-                maskimg_std=nibobj_std.get_data().astype(np.float32)
+                maskimg_std=nibobj_std.get_fdata().astype(np.float32)
             except:
                 print('Could not load '+filename_std)
 
@@ -742,7 +724,7 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
 
             nibobj=nib.load(fatfilename)
             nibobj_std=nib.load(fatfilename)
-            shape=nibobj.get_data().shape[0:3]
+            shape=nibobj.get_fdata().shape[0:3]
             maskimg=np.zeros(shape,dtype=np.float32)
             maskimg_std=np.zeros(shape,dtype=np.float32)
 
@@ -765,9 +747,29 @@ def print_scores(data,data_mask,preds,std_preds,test_id):
         if DEBUG: print('Saving '+filename_std+' (slice %d)'%(slice))
         save_nifti(maskimg_std,nibobj_std.affine,nibobj_std.header,filename_std)
 
-RUNTIME_PARAMS['lr']=1E-3
-RUNTIME_PARAMS['lr_stage']=1
+def saveTrainingMetrics(history,label,filename):
+    plt_x=list(range(1,len(history.history['loss'])+1))
+    fig=plt.figure(figsize=(12, 5), dpi=100)
+    plt.subplot(121)
+    plt.plot(plt_x,history.history['loss'],label='loss')
+    plt.plot(plt_x,history.history['val_loss'],label='val_loss')
+    plt.xlabel('epoch')
+    plt.legend()
+    plt.title(label)
+    plt.subplot(122)
+    plt.plot(plt_x,history.history['f1-score'],label='f1-score')
+    plt.plot(plt_x,history.history['val_f1-score'],label='val_f1-score')
+    plt.xlabel('epoch')
+    plt.legend()
 
+    ep=np.argmin(history.history['val_loss'])
+    infostr='val_loss %.4f@%d, val_f1-score %.4f'%(history.history['val_loss'][ep],
+        ep+1, history.history['val_f1-score'][ep])
+    
+    plt.title(infostr)
+    plt.savefig(filename)
+    plt.close(fig)
+    
 #def MyLRscheduler(epoch, current_lr):
 #    new_lr=float(RUNTIME_PARAMS['lr'])
 #    print('\nStarting epoch %d, learning rate %.1e'%(epoch+1,new_lr))
@@ -807,18 +809,38 @@ class MyTrainingStatsCallback(Callback):
         min_loss_epoch=np.argmin(self.val_losses)
         print('Epoch %d, min loss %.4f at epoch %d'%(epoch+1,self.val_losses[min_loss_epoch],min_loss_epoch+1))
 
-def MyGenerator(image_generator,mask_generator,data_gen_args): 
+def MyGenerator(image_generator,mask_generator): 
     while True:
         batch_images=image_generator.next() # (batch_size, 320, 160, 3)
-        mask_images=mask_generator.next() 
+        mask_images=mask_generator.next().astype(np.uint8)
         
-        valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
-        if not np.array_equal(np.unique(mask_images),valid_values):
-            print('ERROR: np.unique(mask_images)',np.unique(mask_images))
-            assert(False)
-
+        if DEBUG:
+            valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
+            if not np.array_equal(np.unique(mask_images),valid_values):
+                print('ERROR: np.unique(mask_images)',np.unique(mask_images))
+                assert(False)
+            
+        for batchi in range(batch_images.shape[0]):
+            if True and np.random.randint(0,2)==0:
+                if DEBUG:
+                    fig=plt.figure()
+                    plt.subplot(221);plt.imshow(batch_images[batchi,:,:,0],cmap='gray')
+                    plt.subplot(222);plt.imshow(mask_images[batchi,:,:,0],cmap='gray')
+                box=[0,0,0.5,1] if np.random.randint(0,2)==0 else [0.5,0,1,1]
+                batch_images[batchi]=tf.image.crop_and_resize(batch_images[batchi:batchi+1], [box], [0], batch_images.shape[1:3], 'bilinear')
+                mask_images[batchi]=tf.image.crop_and_resize(mask_images[batchi:batchi+1], [box], [0], batch_images.shape[1:3], 'nearest')
+                if DEBUG:
+                    plt.subplot(223);plt.imshow(batch_images[batchi,:,:,0],cmap='gray')
+                    plt.subplot(224);plt.imshow(mask_images[batchi,:,:,0],cmap='gray')
+                    plt.savefig('augmentdebug_crop_and_resize.png')
+                    plt.close(fig)
+                            
+            if False and np.random.randint(0,2)==0:
+                batch_images[batchi]=tf.image.flip_up_down(batch_images[batchi])
+                mask_images[batchi]=tf.image.flip_up_down(mask_images[batchi])
+                
         if RUNTIME_PARAMS['multiclass']:
-            mask_images=tf.one_hot(mask_images.squeeze(axis=3),RUNTIME_PARAMS['classes'])
+            mask_images=tf.one_hot(tf.squeeze(mask_images,axis=3),RUNTIME_PARAMS['classes'])
 
         yield batch_images, mask_images
 
@@ -862,23 +884,8 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
         print('batch_size: %d'%(batch_size))
         
-        data_gen_args = dict(
-#            rotation_range=10,
-            #width_shift_range=0.5,
-            #height_shift_range=0.5,
-#            shear_range=10,
-            #zoom_range=[0.5,1.3] if RUNTIME_PARAMS['al']=='thigh' else [0.5,1.3],
-            #interpolation_order=0, 
-            #horizontal_flip = True,
-            #vertical_flip = True,
-            #fill_mode='constant', # wrap,reflect (nearest causes smudges)
-            #cval=np.nan,
-        )
-
-        #if True: data_gen_args = dict() # disable augmentation
-
-        image_datagen = ImageDataGenerator(**data_gen_args)
-        mask_datagen = ImageDataGenerator(**data_gen_args)
+        image_datagen = ImageDataGenerator()
+        mask_datagen = ImageDataGenerator()
 
         seed = 1
         image_datagen.fit(X_train_this, augment=True, seed=seed)
@@ -914,7 +921,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             else:
                 validation_data=(X_valid_this, y_valid_this.astype(np.float32))
             
-            history=model.fit_generator(MyGenerator(image_generator,mask_generator,data_gen_args), 
+            history=model.fit_generator(MyGenerator(image_generator,mask_generator), 
                     steps_per_epoch=steps_per_epoch, 
                     epochs=5000, 
                     shuffle=True, verbose=2, validation_data=validation_data, 
@@ -937,17 +944,17 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         model.load_weights(TEMP_WEIGHTS_FILE)
 
         if RUNTIME_PARAMS['inputdir']=='train':
-            shutil.move(TEMP_WEIGHTS_FILE,'%s.%d.%s.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary'))
-            trainingMetricsFilename='%s.%s.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
+            shutil.move(TEMP_WEIGHTS_FILE,'full.%d.%s.%s.weights'%(fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary'))
+            trainingMetricsFilename='%s.full.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
         else:
             os.remove(TEMP_WEIGHTS_FILE)
-            trainingMetricsFilename='%s.%s.%d.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),'simple' if simplerModel else 'full',RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
+            trainingMetricsFilename='%s.full.%d.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary') 
+
+        saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
 
         if RUNTIME_PARAMS['multiclass']:
             pass
         else:
-            saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
-
             # validation
             p=model.predict(X_valid_this,batch_size=batch_size, verbose=1)
             DSCs,cutoffs=calc_dice(DIR_valid,y_valid_this,p)
@@ -997,7 +1004,7 @@ def test(test_DIRS):
     for fold in range(0,5):
         print('batch_size: %d'%(batch_size))
 
-        weightsfile='%s.%d.%s.%s.weights'%('simple' if simplerModel else 'full',fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
+        weightsfile='full.%d.%s.%s.weights'%(fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
         weightsfile=os.path.join(INSTALL_DIR,weightsfile)
 
         if not os.path.exists(weightsfile):
@@ -1032,6 +1039,9 @@ def test(test_DIRS):
 #    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
     return DSCs
+
+RUNTIME_PARAMS['lr']=1E-3
+RUNTIME_PARAMS['lr_stage']=1
 
 def main(al,inputdir,widget):
     RUNTIME_PARAMS['al']=al
@@ -1110,7 +1120,7 @@ def main(al,inputdir,widget):
         print('%d cases found'%(len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir']=='train':
-                train_DIRS=DIRS[:]
+                train_DIRS=sorted(DIRS[:])
                 if RUNTIME_PARAMS['al']=='calf':   
                     test_DIRS=[
                         'calf^ibmcmt_p2/p2-008',

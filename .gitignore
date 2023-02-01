@@ -11,4 +11,4 @@ tmp*
 local_setup.sh
 *.csv
 *.pdf
-
+*.png
