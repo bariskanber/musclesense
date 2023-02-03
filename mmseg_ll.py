@@ -21,6 +21,17 @@ from sklearn.model_selection import GroupKFold
 import tensorflow as tf
 import tensorflow.keras
 tensorflow.keras.backend.set_image_data_format('channels_last')
+
+os.environ['PYTHONHASHSEED'] = '0'
+np.random.seed(42)
+tf.random.set_seed(42)
+random.seed(42)
+    
+os.environ['TF_DETERMINISTIC_OPS'] = '1'
+os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, Callback, LearningRateScheduler
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -47,9 +58,7 @@ DEBUG=False
 llshortdict={'thigh':'th','calf':'cf'}
 
 scale_down_factor=1
-
-np.random.seed(0)
-
+    
 target_size_y,target_size_x=320//scale_down_factor,160//scale_down_factor
 
 if MY_PC: batch_size=1
@@ -62,21 +71,6 @@ MODULE_NAME=os.path.basename(__file__)
 INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR',INSTALL_DIR)
 print('MODULE_NAME',MODULE_NAME)
-
-np.random.seed(42)
-tf.random.set_seed(42)
-random.seed(42)
-
-if False:
-    with open('%s/.keras/keras.json'%(os.path.expanduser("~")),'rt') as json_file:
-        data = json.load(json_file)
-        if DEBUG: print(data)
-
-        assert(data['floatx']=="float32")
-        assert(data['epsilon']==1e-07)
-        assert(data['backend']=="tensorflow")
-        assert(data['image_data_format']=="channels_last")
-        assert(data['image_dim_ordering']=="th")
 
 def get_subject_id_from_DIR(DIR):
         DIR=DIR.split('^') # e.g. thigh^brcalskd/BRCALSKD_056C
@@ -821,7 +815,8 @@ def MyGenerator(image_generator,mask_generator):
                 assert(False)
             
         for batchi in range(batch_images.shape[0]):
-            if True and np.random.randint(0,2)==0:
+            TAG_augment_crop_and_resize=True
+            if TAG_augment_crop_and_resize and np.random.randint(0,2)==0:
                 if DEBUG:
                     fig=plt.figure()
                     plt.subplot(221);plt.imshow(batch_images[batchi,:,:,0],cmap='gray')
@@ -832,12 +827,10 @@ def MyGenerator(image_generator,mask_generator):
                 if DEBUG:
                     plt.subplot(223);plt.imshow(batch_images[batchi,:,:,0],cmap='gray')
                     plt.subplot(224);plt.imshow(mask_images[batchi,:,:,0],cmap='gray')
-                    plt.savefig('augmentdebug_crop_and_resize.png')
+                    plt.savefig('debug_augment_crop_and_resize.png')
                     plt.close(fig)
-                            
-            if False and np.random.randint(0,2)==0:
-                batch_images[batchi]=tf.image.flip_up_down(batch_images[batchi])
-                mask_images[batchi]=tf.image.flip_up_down(mask_images[batchi])
+                    
+            # did not work/help: rot90(k=2), flip_left_right, flip_up_down (invalidates L/R orientation)
                 
         if RUNTIME_PARAMS['multiclass']:
             mask_images=tf.one_hot(tf.squeeze(mask_images,axis=3),RUNTIME_PARAMS['classes'])
@@ -850,7 +843,9 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
     train_DIR,train_data,train_maskimg = read_and_normalize_data(train_DIRS)
     
     if RUNTIME_PARAMS['multiclass']:
-        print('Not validating mask values in multiclass mode')
+        valid_values=[0,1,2,3,4,5,6,7,11,12,13,14,15,16,17] if RUNTIME_PARAMS['al']=='calf' else [0,1,2,3,4,5,6,7,8,9,10,11,21,22,23,24,25,26,27,28,29,30,31]
+        assert(np.array_equal(np.unique(train_maskimg),valid_values))
+        assert(np.array_equal(np.unique(test_maskimg),valid_values) or np.array_equal(np.unique(test_maskimg),[0]))
     else:
         assert(np.array_equal(np.unique(train_maskimg),[0,1]))
         assert(np.array_equal(np.unique(test_maskimg),[0,1]) or np.array_equal(np.unique(test_maskimg),[0]))
@@ -903,7 +898,6 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
         steps_per_epoch=math.ceil(X_train_this.shape[0]/batch_size)*1
 
-        retry=0
         while True:
             model=MYNET()
             if DEBUG: model.summary()
@@ -913,7 +907,6 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             callbacks = [
                 MyEarlyStopping(model,TEMP_WEIGHTS_FILE),
                 #LearningRateScheduler(MyLRscheduler),
-                #TensorBoard(log_dir=INSTALL_DIR,histogram_freq=0,write_graph=False,write_images=False)
             ]
 
             if RUNTIME_PARAMS['multiclass']:
@@ -927,19 +920,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
                     shuffle=True, verbose=2, validation_data=validation_data, 
                     callbacks=callbacks)
             
-            if RUNTIME_PARAMS['multiclass']: break
-            
-            if 'val_accuracy' in history.history:
-                val_accuracy=history.history['val_accuracy']
-            else:
-                val_accuracy=history.history['val_acc']
-                
-            if val_accuracy[len(val_accuracy)-1]>0.90:
-                break
-
-            retry+=1
-            print('Retrying training [retry=%d]'%(retry))
-            os.remove(TEMP_WEIGHTS_FILE)
+            break
 
         model.load_weights(TEMP_WEIGHTS_FILE)
 
@@ -952,29 +933,33 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
         saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
 
-        if RUNTIME_PARAMS['multiclass']:
-            pass
+        best_epoch = np.argmin(history.history['val_loss'])
+        best_epoch_val_DSC = history.history['val_f1-score'][best_epoch]
+        best_epoch_val_loss = history.history['val_loss'][best_epoch]
+        best_epoch_train_DSC = history.history['f1-score'][best_epoch]
+        best_epoch_train_loss = history.history['loss'][best_epoch]
+
+        if fold==0:
+            val_DSCs = [best_epoch_val_DSC]
+            val_losses = [best_epoch_val_loss]
+            train_DSCs = [best_epoch_train_DSC]
+            train_losses = [best_epoch_train_loss]
+            best_epochs = [best_epoch]
         else:
-            # validation
-            p=model.predict(X_valid_this,batch_size=batch_size, verbose=1)
-            DSCs,cutoffs=calc_dice(DIR_valid,y_valid_this,p)
+            val_DSCs.extend([best_epoch_val_DSC])
+            val_losses.extend([best_epoch_val_loss])
+            train_DSCs.extend([best_epoch_train_DSC])
+            train_losses.extend([best_epoch_train_loss])
+            best_epochs.append(best_epoch)
 
-            if fold==0:
-                val_DSCs = DSCs
-                val_cutoffs = cutoffs
-                val_losses = [np.min(history.history['val_loss'])]
-            else:
-                val_DSCs.extend(DSCs)
-                val_cutoffs.extend(cutoffs)
-                val_losses.append(np.min(history.history['val_loss']))
+        print('Fold %d [%s, batch_size=%d]'%(fold+1,RUNTIME_PARAMS['inputdir'],batch_size))
+        print('mean best epoch %d +- %d [range %d - %d]'%(np.mean(best_epochs),np.std(best_epochs),np.min(best_epochs),np.max(best_epochs)))
 
-            print('inner fold',fold+1)
-            print('batch_size',batch_size)
-            print('mean DSC [val] %.4f +- %.4f [n=%d]'%(np.mean(val_DSCs),np.std(val_DSCs),len(val_DSCs)))
-            print('range DSC [val] %.4f - %.4f'%(np.min(val_DSCs),np.max(val_DSCs)))
-            print('mean loss [val] %.4f +- %.4f'%(np.mean(val_losses),np.std(val_losses)))
-            print('range loss [val] %.4f - %.4f'%(np.min(val_losses),np.max(val_losses)))
-            print('mean best_cutoff %f'%(np.mean(val_cutoffs)))
+        print('mean DSC [tra] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(train_DSCs),np.std(train_DSCs),np.min(train_DSCs),np.max(train_DSCs)))
+        print('mean DSC [val] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(val_DSCs),np.std(val_DSCs),np.min(val_DSCs),np.max(val_DSCs)))
+
+        print('mean loss [tra] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(train_losses),np.std(train_losses),np.min(train_losses),np.max(train_losses)))
+        print('mean loss [val] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(val_losses),np.std(val_losses),np.min(val_losses),np.max(val_losses)))
 
         # test
         p=model.predict(test_data,batch_size=batch_size, verbose=1)
@@ -988,11 +973,12 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         if BREAK_OUT_AFTER_FIRST_FOLD:
             break
 
-    mean_preds=np.nanmean(preds,axis=0)
-    std_preds=np.nanstd(preds,axis=0)
+#    mean_preds=np.nanmean(preds,axis=0)
+#    std_preds=np.nanstd(preds,axis=0)
 #    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
-    print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
-    return DSCs
+#    print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
+
+    return None#DSCs
 
 def test(test_DIRS):
     print('test',test_DIRS)
@@ -1135,7 +1121,7 @@ def main(al,inputdir,widget):
 
                 np.random.shuffle(train_DIRS)
 
-                train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD=True)
+                train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD=False)
         elif RUNTIME_PARAMS['inputdir']=='validate':
             print('Validate mode')
             print('Use this mode to perform nested cross validation over all the available training data')
@@ -1273,3 +1259,4 @@ if __name__ == '__main__':
         sys.exit(1)
 
     main(args.al,args.inputdir,widget=None)
+    
