@@ -16,33 +16,19 @@ import shutil
 import argparse
 import urllib.request
 import skimage.measure
+from tqdm import tqdm
 from sklearn.model_selection import GroupKFold
 
+import torch
+from torch.utils.data import Dataset, DataLoader
+import segmentation_models_pytorch as smp
+
 import tensorflow as tf
-import tensorflow.keras
-tensorflow.keras.backend.set_image_data_format('channels_last')
-
-os.environ['PYTHONHASHSEED'] = '0'
-np.random.seed(42)
-tf.random.set_seed(42)
-random.seed(42)
-    
-os.environ['TF_DETERMINISTIC_OPS'] = '1'
-os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
-tf.config.threading.set_inter_op_parallelism_threads(1)
-tf.config.threading.set_intra_op_parallelism_threads(1)
-
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, Callback, LearningRateScheduler
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
 from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
 from utils import numpy_dice_coefficient, scale2D
 from nifti_tools import save_nifti
-
-import segmentation_models as sm
-sm.set_framework('tf.keras')
 
 import socket
 MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
@@ -61,11 +47,7 @@ scale_down_factor=1
     
 target_size_y,target_size_x=320//scale_down_factor,160//scale_down_factor
 
-if MY_PC: batch_size=1
-else: 
-    batch_size=1
-
-RUNTIME_PARAMS=dict()
+RUNTIME_PARAMS={'batch_size':4}
 
 MODULE_NAME=os.path.basename(__file__)
 INSTALL_DIR=os.path.dirname(os.path.realpath(__file__))
@@ -593,24 +575,19 @@ def read_and_normalize_data(DIRS, test=False):
 
     return DIR,data,maskimg
 
-def MYNET(input_size = [target_size_y,target_size_x,3]):
+def MYNET():
     if RUNTIME_PARAMS['multiclass']:
         activation='softmax'
-        RUNTIME_PARAMS['classes']=17+1 if RUNTIME_PARAMS['al']=='calf' else 31+1
-        loss=sm.losses.cce_dice_loss
-        metrics=[sm.metrics.f1_score]
     else:
         activation='sigmoid'
-        RUNTIME_PARAMS['classes']=1
-        loss=sm.losses.bce_dice_loss
-        metrics=[sm.metrics.f1_score]
     
-    model = sm.Unet('resnet34', encoder_weights='imagenet', input_shape=input_size, classes=RUNTIME_PARAMS['classes'], activation=activation)
-
-    opt = Adam(lr = RUNTIME_PARAMS['lr'], amsgrad=False)
-    print(opt)
-    model.compile(optimizer = opt, loss=loss, metrics=metrics)
-    return model
+    return smp.Unet(
+            encoder_name='resnet34',
+            encoder_weights='imagenet',
+            in_channels=3,
+            classes=RUNTIME_PARAMS['classes'], 
+            activation=activation
+    )
 
 def calc_dice(test_id,test_mask,preds):
     if type(test_id)==str:
@@ -764,45 +741,6 @@ def saveTrainingMetrics(history,label,filename):
     plt.savefig(filename)
     plt.close(fig)
     
-#def MyLRscheduler(epoch, current_lr):
-#    new_lr=float(RUNTIME_PARAMS['lr'])
-#    print('\nStarting epoch %d, learning rate %.1e'%(epoch+1,new_lr))
-#    return new_lr
-
-class MyEarlyStopping(Callback):
-    def __init__(self,model,bestweightsfile):
-        self.model=model
-        self.bestweightsfile=bestweightsfile
-        
-    def on_train_begin(self,logs):
-        self.val_losses=[]
-
-    def on_epoch_end(self, epoch, logs):
-        assert(epoch==len(self.val_losses))
-
-        val_loss = logs.get('val_loss')
-        self.val_losses.append(val_loss)
-
-        min_loss_epoch=np.argmin(self.val_losses)
-        
-        if min_loss_epoch==len(self.val_losses)-1:
-            print('Loss reduced to %.4f, saving weights'%(val_loss))
-            self.model.save_weights(self.bestweightsfile,overwrite=True,save_format='h5')
-
-        if epoch>=min_loss_epoch+10:
-            print('Not improved for 10 epochs, stopping early')
-            self.model.stop_training = True
-
-class MyTrainingStatsCallback(Callback):
-    def on_train_begin(self,logs):
-        self.val_losses=[]
-
-    def on_epoch_end(self, epoch, logs):
-        val_loss = logs.get('val_loss')
-        self.val_losses.append(val_loss)
-        min_loss_epoch=np.argmin(self.val_losses)
-        print('Epoch %d, min loss %.4f at epoch %d'%(epoch+1,self.val_losses[min_loss_epoch],min_loss_epoch+1))
-
 def MyGenerator(image_generator,mask_generator): 
     while True:
         batch_images=image_generator.next() # (batch_size, 320, 160, 3)
@@ -837,6 +775,20 @@ def MyGenerator(image_generator,mask_generator):
 
         yield batch_images, mask_images
 
+class MMSegDataset(Dataset):
+    def __init__(self,images,masks):
+        self.images=images
+        self.masks=masks
+        
+    def __len__(self):
+        return self.images.shape[0]
+        
+    def __getitem__(self,index):
+        return {
+            'image':np.transpose(self.images[index],(2,0,1)), 
+            'mask':np.transpose(self.masks[index],(2,0,1))
+            }
+
 def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
     "Train and validate"
     test_DIR,test_data,test_maskimg = read_and_normalize_data(test_DIRS,True)
@@ -870,6 +822,8 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
 
         print('X_train_this',X_train_this.shape,X_train_this.dtype)
         print('X_valid_this',X_valid_this.shape,X_valid_this.dtype)
+        print('y_train_this',y_train_this.shape,y_train_this.dtype)
+        print('y_valid_this',y_valid_this.shape,y_valid_this.dtype)
 
         train_subjects=outer_train_subjects[train_index]
         valid_subjects=outer_train_subjects[valid_index]
@@ -877,51 +831,74 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         common_subjects=np.intersect1d(train_subjects, valid_subjects, assume_unique=False, return_indices=False)
         assert(common_subjects.size==0)
 
-        print('batch_size: %d'%(batch_size))
+        print('batch_size: %d'%(RUNTIME_PARAMS['batch_size']))
+
+        if RUNTIME_PARAMS['multiclass']:
+            y_train_this=torch.nn.functional.one_hot(torch.LongTensor(np.squeeze(y_train_this,axis=3)),RUNTIME_PARAMS['classes'])
+            y_valid_this=torch.nn.functional.one_hot(torch.LongTensor(np.squeeze(y_valid_this,axis=3)),RUNTIME_PARAMS['classes'])
+
+        train_dataloader=DataLoader(
+                MMSegDataset(X_train_this,y_train_this),
+                batch_size=RUNTIME_PARAMS['batch_size'],
+                shuffle=True,
+                num_workers=4
+                )
+            
+        valid_dataloader=DataLoader(
+                MMSegDataset(X_valid_this,y_valid_this),
+                batch_size=RUNTIME_PARAMS['batch_size'],
+                shuffle=True,
+                num_workers=4
+                )
+            
+        #TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.weights.h5'
+        model=MYNET()
+        model=model.to(RUNTIME_PARAMS['device'])
+        optimiser = torch.optim.Adam(model.parameters(),lr=RUNTIME_PARAMS['lr'])
+        loss_fn = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
+        history=[]
+        for epoch in range(5000):
+            metrics_this_epoch={}
+
+            model.train()            
+            losses_this_epoch = []
+            f1_scores_this_epoch = []
+            with torch.set_grad_enabled(True):
+                for data in tqdm(train_dataloader,leave=False,desc='Training'):
+                    image, mask = data['image'], data['mask']
+                    # print(image.shape,mask.shape) # [batch_size, 3, 320, 160] and [batch_size, 18, 320, 160]
+                    image = image.to(RUNTIME_PARAMS['device'])
+                    mask = mask.to(RUNTIME_PARAMS['device'])
+                    optimiser.zero_grad()
+                    pred = model(image)
+                    loss = loss_fn(pred,mask)
+                    loss.backward()
+                    optimiser.step()
+                    losses_this_epoch.append(loss.item())
+                    tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
+                    f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro").cpu())
+                                                
+            metrics_this_epoch['loss']=np.mean(losses_this_epoch)
+            metrics_this_epoch['f1_score']=np.mean(f1_scores_this_epoch)
+            
+            model.eval()
+            losses_this_epoch = []
+            f1_scores_this_epoch = []
+            for data in tqdm(valid_dataloader,leave=False,desc='Validating'):
+                image, mask = data['image'], data['mask']
+                image = image.to(RUNTIME_PARAMS['device'])
+                mask = mask.to(RUNTIME_PARAMS['device'])
+                pred = model(image)
+                loss = loss_fn(pred,mask)
+                losses_this_epoch.append(loss.item())
+                tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
+                f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro").cpu())
+            metrics_this_epoch['val_loss']=np.mean(losses_this_epoch)       
+            metrics_this_epoch['val_f1_score']=np.mean(f1_scores_this_epoch)
+            
+            history.append(metrics_this_epoch)     
+            print(f'Epoch {epoch+1} complete, {history[-1]}')                               
         
-        image_datagen = ImageDataGenerator()
-        mask_datagen = ImageDataGenerator()
-
-        seed = 1
-        image_datagen.fit(X_train_this, augment=True, seed=seed)
-        mask_datagen.fit(y_train_this, augment=True, seed=seed)
-
-        image_generator = image_datagen.flow(
-            X_train_this,
-            batch_size=batch_size,
-            seed=seed)
-
-        mask_generator = mask_datagen.flow(
-            y_train_this,
-            batch_size=batch_size,
-            seed=seed)
-
-        steps_per_epoch=math.ceil(X_train_this.shape[0]/batch_size)*1
-
-        while True:
-            model=MYNET()
-            if DEBUG: model.summary()
-            
-            TEMP_WEIGHTS_FILE='tmp.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.weights.h5'
-
-            callbacks = [
-                MyEarlyStopping(model,TEMP_WEIGHTS_FILE),
-                #LearningRateScheduler(MyLRscheduler),
-            ]
-
-            if RUNTIME_PARAMS['multiclass']:
-                validation_data=(X_valid_this, tf.one_hot(y_valid_this.squeeze(axis=3),RUNTIME_PARAMS['classes']))
-            else:
-                validation_data=(X_valid_this, y_valid_this.astype(np.float32))
-            
-            history=model.fit_generator(MyGenerator(image_generator,mask_generator), 
-                    steps_per_epoch=steps_per_epoch, 
-                    epochs=5000, 
-                    shuffle=True, verbose=2, validation_data=validation_data, 
-                    callbacks=callbacks)
-            
-            break
-
         model.load_weights(TEMP_WEIGHTS_FILE)
 
         if RUNTIME_PARAMS['inputdir']=='train':
@@ -952,7 +929,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
             train_losses.extend([best_epoch_train_loss])
             best_epochs.append(best_epoch)
 
-        print('Fold %d [%s, batch_size=%d]'%(fold+1,RUNTIME_PARAMS['inputdir'],batch_size))
+        print('Fold %d [%s, batch_size=%d]'%(fold+1,RUNTIME_PARAMS['inputdir'],RUNTIME_PARAMS['batch_size']))
         print('mean best epoch %d +- %d [range %d - %d]'%(np.mean(best_epochs),np.std(best_epochs),np.min(best_epochs),np.max(best_epochs)))
 
         print('mean DSC [tra] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(train_DSCs),np.std(train_DSCs),np.min(train_DSCs),np.max(train_DSCs)))
@@ -962,7 +939,7 @@ def train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD):
         print('mean loss [val] %.4f +- %.4f [range %.4f - %.4f]'%(np.mean(val_losses),np.std(val_losses),np.min(val_losses),np.max(val_losses)))
 
         # test
-        p=model.predict(test_data,batch_size=batch_size, verbose=1)
+        p=model.predict(test_data,batch_size=RUNTIME_PARAMS['batch_size'], verbose=1)
         p=np.expand_dims(p,axis=0)
         
         if fold==0:
@@ -988,7 +965,7 @@ def test(test_DIRS):
 
     model=MYNET()
     for fold in range(0,5):
-        print('batch_size: %d'%(batch_size))
+        print('batch_size: %d'%(RUNTIME_PARAMS['batch_size']))
 
         weightsfile='full.%d.%s.%s.weights'%(fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
         weightsfile=os.path.join(INSTALL_DIR,weightsfile)
@@ -1009,7 +986,7 @@ def test(test_DIRS):
 
         model.load_weights(weightsfile)
 
-        p=model.predict(test_data,batch_size=batch_size, verbose=1)
+        p=model.predict(test_data,batch_size=RUNTIME_PARAMS['batch_size'], verbose=1)
         p=np.expand_dims(p,axis=0)
         
         if fold==0:
@@ -1038,6 +1015,25 @@ def main(al,inputdir,widget):
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text']='Calculating mask...'
         RUNTIME_PARAMS['widget'].update()
+
+    torch.manual_seed(44)
+    random.seed(44)
+    np.random.seed(44)
+    torch.cuda.manual_seed(44)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+            
+    if torch.cuda.is_available():
+        RUNTIME_PARAMS['device']=torch.device('cuda:0')
+    else:
+        RUNTIME_PARAMS['device']=torch.device('cpu')
+        print('CUDA not available, will run on CPU')
+        sleep(5)
+        
+    if RUNTIME_PARAMS['multiclass']:
+        RUNTIME_PARAMS['classes']=17+1 if RUNTIME_PARAMS['al']=='calf' else 31+1
+    else:
+        RUNTIME_PARAMS['classes']=1
 
     ll=RUNTIME_PARAMS['al']
 
@@ -1102,7 +1098,7 @@ def main(al,inputdir,widget):
 
                     #if MY_PC and len(DIRS)>20: break
 
-        #DIRS=DIRS[:20]
+        DIRS=DIRS[:20]
         print('%d cases found'%(len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir']=='train':
@@ -1165,7 +1161,7 @@ def main(al,inputdir,widget):
                 DSCarray=train(train_DIRS,test_DIRS,BREAK_OUT_AFTER_FIRST_FOLD=False)
                 DSCs.extend(DSCarray)
 
-                print('batch_size',batch_size)
+                print('batch_size',RUNTIME_PARAMS['batch_size'])
                 print('difficult case %d or %d'%(case_i,len(difficult_cases)))
                 if len(DSCs)>0:
                     print('mean DSC %.4f +- %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
@@ -1220,7 +1216,7 @@ def main(al,inputdir,widget):
                         BREAK_OUT_AFTER_FIRST_FOLD=True)
                     DSCs.extend(DSCarray)
 
-                    print('batch_size',batch_size)
+                    print('batch_size',RUNTIME_PARAMS['batch_size'])
                     print('outer fold',fold+1)
                     print('mean DSC %.4f +- %.4f [n=%d]'%(np.mean(DSCs),np.std(DSCs),len(DSCs)))
                     print('range DSC %.4f - %.4f'%(np.min(DSCs),np.max(DSCs)))
