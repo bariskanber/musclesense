@@ -3,7 +3,7 @@ hypopp/
 ibmcmt_p*/
 test_cases/
 miniconda3/
-*.weights*
+*.model
 __pycache__*
 tmp*
 *~

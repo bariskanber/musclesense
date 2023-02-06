@@ -19,6 +19,8 @@ from sklearn.model_selection import GroupKFold
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as tt
+from torchvision.transforms.functional import resized_crop
 import segmentation_models_pytorch as smp
 
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
@@ -27,7 +29,7 @@ from utils import numpy_dice_coefficient, scale2D
 from nifti_tools import save_nifti
 
 import socket
-MY_PC=1 if socket.gethostname()=="bkanber-gpu" else 0
+MY_PC = 1 if socket.gethostname() == "bkanber-gpu" else 0
 
 if MY_PC:
     import matplotlib.pyplot as plt
@@ -43,7 +45,7 @@ scale_down_factor = 1
 
 target_size_y, target_size_x = 320//scale_down_factor, 160//scale_down_factor
 
-RUNTIME_PARAMS = {'batch_size': 4}
+RUNTIME_PARAMS = {'smoketest': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 10}
 
 MODULE_NAME = os.path.basename(__file__)
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -776,69 +778,59 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
 
 
 def saveTrainingMetrics(history, label, filename):
-    plt_x = list(range(1, len(history.history['loss'])+1))
+    plt_x = list(range(1, len(history['loss'])+1))
     fig = plt.figure(figsize=(12, 5), dpi=100)
     plt.subplot(121)
-    plt.plot(plt_x, history.history['loss'], label='loss')
-    plt.plot(plt_x, history.history['val_loss'], label='val_loss')
+    plt.plot(plt_x, history['loss'], label='loss')
+    plt.plot(plt_x, history['val_loss'], label='val_loss')
     plt.xlabel('epoch')
     plt.legend()
     plt.title(label)
     plt.subplot(122)
-    plt.plot(plt_x, history.history['f1-score'], label='f1-score')
-    plt.plot(plt_x, history.history['val_f1-score'], label='val_f1-score')
+    plt.plot(plt_x, history['f1-score'], label='f1-score')
+    plt.plot(plt_x, history['val_f1-score'], label='val_f1-score')
     plt.xlabel('epoch')
     plt.legend()
 
-    ep = np.argmin(history.history['val_loss'])
-    infostr = 'val_loss %.4f@%d, val_f1-score %.4f' % (history.history['val_loss'][ep],
-                                                       ep+1, history.history['val_f1-score'][ep])
+    ep = np.argmin(history['val_loss'])
+    infostr = 'val_loss %.4f@%d, val_f1-score %.4f' % (history['val_loss'][ep],
+                                                       ep+1, history['val_f1-score'][ep])
 
     plt.title(infostr)
     plt.savefig(filename)
     plt.close(fig)
 
 
-def MyGenerator(image_generator, mask_generator):
-    while True:
-        batch_images = image_generator.next()  # (batch_size, 320, 160, 3)
-        mask_images = mask_generator.next().astype(np.uint8)
+def AugmentData(batch_images, mask_images):
+    for batchi in range(batch_images.shape[0]):
+        TAG_augment_crop_and_resize = True
+        if TAG_augment_crop_and_resize and np.random.randint(0, 2) == 0:
+            if DEBUG:
+                fig = plt.figure()
+                plt.subplot(221)
+                plt.imshow(batch_images[batchi, 0, :, :], cmap='gray')
+                plt.subplot(222)
+                plt.imshow(mask_images[batchi, 0, :, :], cmap='gray')
+            croparea = [0, 0, batch_images.shape[2]//2, batch_images.shape[3]]
+            if np.random.randint(0, 2) == 1:
+                croparea[0] = batch_images.shape[2]//2
+            batch_images[batchi] = resized_crop(batch_images[batchi:batchi+1], *croparea,
+                                                batch_images.shape[2:4], tt.InterpolationMode.BILINEAR
+                                                )
+            mask_images[batchi] = resized_crop(mask_images[batchi:batchi+1], *croparea,
+                                               batch_images.shape[2:4], tt.InterpolationMode.NEAREST
+                                               )
+            if DEBUG:
+                plt.subplot(223)
+                plt.imshow(batch_images[batchi, 0, :, :], cmap='gray')
+                plt.subplot(224)
+                plt.imshow(mask_images[batchi, 0, :, :], cmap='gray')
+                plt.savefig('__sample_augment_crop_and_resize.png')
+                plt.close(fig)
 
-        if DEBUG:
-            valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-            if not np.array_equal(np.unique(mask_images), valid_values):
-                print('ERROR: np.unique(mask_images)', np.unique(mask_images))
-                assert (False)
+        # did not work/help: rot90(k=2), flip_left_right, flip_up_down (would invalidate L/R orientation)
 
-        for batchi in range(batch_images.shape[0]):
-            TAG_augment_crop_and_resize = True
-            if TAG_augment_crop_and_resize and np.random.randint(0, 2) == 0:
-                if DEBUG:
-                    fig = plt.figure()
-                    plt.subplot(221)
-                    plt.imshow(batch_images[batchi, :, :, 0], cmap='gray')
-                    plt.subplot(222)
-                    plt.imshow(mask_images[batchi, :, :, 0], cmap='gray')
-                box = [0, 0, 0.5, 1] if np.random.randint(0, 2) == 0 else [0.5, 0, 1, 1]
-                batch_images[batchi] = tf.image.crop_and_resize(
-                    batch_images[batchi:batchi+1], [box], [0], batch_images.shape[1:3], 'bilinear')
-                mask_images[batchi] = tf.image.crop_and_resize(
-                    mask_images[batchi:batchi+1], [box], [0], batch_images.shape[1:3], 'nearest')
-                if DEBUG:
-                    plt.subplot(223)
-                    plt.imshow(batch_images[batchi, :, :, 0], cmap='gray')
-                    plt.subplot(224)
-                    plt.imshow(mask_images[batchi, :, :, 0], cmap='gray')
-                    plt.savefig('debug_augment_crop_and_resize.png')
-                    plt.close(fig)
-
-            # did not work/help: rot90(k=2), flip_left_right, flip_up_down (invalidates L/R orientation)
-
-        if RUNTIME_PARAMS['multiclass']:
-            mask_images = tf.one_hot(tf.squeeze(mask_images, axis=3), RUNTIME_PARAMS['classes'])
-
-        yield batch_images, mask_images
+    return batch_images, mask_images
 
 
 class MMSegDataset(Dataset):
@@ -911,14 +903,14 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             MMSegDataset(X_train_this, y_train_this),
             batch_size=RUNTIME_PARAMS['batch_size'],
             shuffle=True,
-            num_workers=1
+            num_workers=0
         )
 
         valid_dataloader = DataLoader(
             MMSegDataset(X_valid_this, y_valid_this),
             batch_size=RUNTIME_PARAMS['batch_size'],
             shuffle=False,
-            num_workers=1
+            num_workers=0
         )
 
         device = RUNTIME_PARAMS['device']
@@ -926,14 +918,14 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         optimiser = torch.optim.Adam(model.parameters(), lr=RUNTIME_PARAMS['lr'])
         loss_fn = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
         history = {'loss': [], 'val_loss': [], 'f1-score': [], 'val_f1-score': []}
-        for epoch in range(5555):
+        for epoch in range(5 if RUNTIME_PARAMS['smoketest'] else 5555):
             epoch_st = time.time()
             model.train()
             losses_this_epoch = []
             f1_scores_this_epoch = []
             with torch.set_grad_enabled(True):
                 for data in tqdm(train_dataloader, leave=False, desc='Training'):
-                    image, mask = data['image'], data['mask']
+                    image, mask = AugmentData(data['image'], data['mask'])
                     # print(image.shape,mask.shape) # [batch_size, 3, 320, 160] and [batch_size, 18, 320, 160]
                     image = image.to(device)
                     mask = mask.to(device)
@@ -969,26 +961,27 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             epoch_et = time.time() - epoch_st
 
             metrics_str = ''
-            for metric in history: metrics_str += f'{metric}: {history[metric][-1]:.4f} '
-            if best_epoch==epoch: 
-                metrics_str+='[*]'
-            print(f'Epoch {epoch+1} completed in {epoch_et:.1f} second(s), {metrics_str}')
+            for metric in history:
+                metrics_str += f'{metric}: {history[metric][-1]:.4f} '
+            if best_epoch == epoch:
+                metrics_str += '[*]'
+                best_epoch_state_dict = model.state_dict()
+            print(f'Epoch {epoch+1} completed in {epoch_et:.1f}s, {metrics_str}')
 
-            patience = 5
-            if best_epoch < epoch-patience:
-                print('Validation loss has not improved within the set number epochs, early stopping')
+            if best_epoch < epoch-RUNTIME_PARAMS['patience']:
+                print(f"Validation loss has not improved within {RUNTIME_PARAMS['patience']} epoch(s), early stopping")
                 break
 
-        # model.load_weights(TEMP_WEIGHTS_FILE)
+        model.load_state_dict(best_epoch_state_dict)
+        if RUNTIME_PARAMS['inputdir'] == 'train':
+            modelfilename = 'full.%d.%s.%s.model' % (
+                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
+            torch.save(best_epoch_state_dict, modelfilename)
+            trainingMetricsFilename = 'full.%d.%s.%s.%s.pdf' % (fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
+        else:
+            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.pdf' % (RUNTIME_PARAMS['outerfold'], fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
 
-        # if RUNTIME_PARAMS['inputdir']=='train':
-        #    shutil.move(TEMP_WEIGHTS_FILE,'full.%d.%s.%s.weights'%(fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary'))
-        #    trainingMetricsFilename='%s.full.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
-        # else:
-        #    os.remove(TEMP_WEIGHTS_FILE)
-        #    trainingMetricsFilename='%s.full.%d.%d.%s.%s.pdf'%(RUNTIME_PARAMS['inputdir'].replace('/','-'),RUNTIME_PARAMS['outerfold'],fold,RUNTIME_PARAMS['al'],'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
-
-        # saveTrainingMetrics(history,trainingMetricsFilename,trainingMetricsFilename)
+        saveTrainingMetrics(history, trainingMetricsFilename, trainingMetricsFilename)
 
         best_epoch_val_DSC = history['val_f1-score'][best_epoch]
         best_epoch_val_loss = history['val_loss'][best_epoch]
@@ -1023,12 +1016,12 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
               (np.mean(val_losses), np.std(val_losses), np.min(val_losses), np.max(val_losses)))
 
         # test
-        #p = model.predict(test_data, batch_size=RUNTIME_PARAMS['batch_size'], verbose=1)
-        #p = np.expand_dims(p, axis=0)
+        # p = model.predict(test_data, batch_size=RUNTIME_PARAMS['batch_size'], verbose=1)
+        # p = np.expand_dims(p, axis=0)
 
-        #if fold == 0:
+        # if fold == 0:
         #    preds = p
-        #else:
+        # else:
         #    preds = np.concatenate((preds, p), axis=0)
         fold += 1
         if BREAK_OUT_AFTER_FIRST_FOLD:
@@ -1091,10 +1084,6 @@ def test(test_DIRS):
     return DSCs
 
 
-RUNTIME_PARAMS['lr'] = 1E-3
-RUNTIME_PARAMS['lr_stage'] = 1
-
-
 def main(al, inputdir, widget):
     RUNTIME_PARAMS['al'] = al
     RUNTIME_PARAMS['inputdir'] = inputdir
@@ -1117,6 +1106,10 @@ def main(al, inputdir, widget):
     else:
         RUNTIME_PARAMS['device'] = torch.device('cpu')
         print('CUDA not available, will run on CPU')
+        time.sleep(5)
+        
+    if RUNTIME_PARAMS['smoketest']: 
+        print('Smoke test enabled')
         time.sleep(5)
 
     if RUNTIME_PARAMS['multiclass']:
@@ -1194,7 +1187,7 @@ def main(al, inputdir, widget):
 
                 # if MY_PC and len(DIRS)>20: break
 
-        #DIRS = DIRS[:20]
+        if RUNTIME_PARAMS['smoketest']: DIRS = DIRS[:20]
         print('%d cases found' % (len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir'] == 'train':
