@@ -45,7 +45,7 @@ scale_down_factor = 1
 
 target_size_y, target_size_x = 320//scale_down_factor, 160//scale_down_factor
 
-RUNTIME_PARAMS = {'smoketest': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 10}
+RUNTIME_PARAMS = {'smoketest': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
 
 MODULE_NAME = os.path.basename(__file__)
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -633,7 +633,7 @@ def MYNET():
         activation = 'sigmoid'
 
     return smp.Unet(
-        encoder_name='resnet34',
+        encoder_name='resnet50', # 'resnet34'
         encoder_weights='imagenet',
         in_channels=3,
         classes=RUNTIME_PARAMS['classes'],
@@ -916,17 +916,24 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         device = RUNTIME_PARAMS['device']
         model = MYNET().to(device)
         optimiser = torch.optim.Adam(model.parameters(), lr=RUNTIME_PARAMS['lr'])
-        loss_fn = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
+        #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=1, gamma=0.8)
+
+        def MMSegLoss(y_pred, y_true):
+            loss1 = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
+            # loss2 = smp.losses.SoftCrossEntropyLoss(smooth_factor=0.0)
+            return loss1.forward(y_pred, y_true)  # + loss2.forward(y_pred, y_true)
+
+        loss_fn = MMSegLoss
         history = {'loss': [], 'val_loss': [], 'f1-score': [], 'val_f1-score': []}
         for epoch in range(5 if RUNTIME_PARAMS['smoketest'] else 5555):
             epoch_st = time.time()
+
             model.train()
             losses_this_epoch = []
             f1_scores_this_epoch = []
             with torch.set_grad_enabled(True):
                 for data in tqdm(train_dataloader, leave=False, desc='Training'):
                     image, mask = AugmentData(data['image'], data['mask'])
-                    # print(image.shape,mask.shape) # [batch_size, 3, 320, 160] and [batch_size, 18, 320, 160]
                     image = image.to(device)
                     mask = mask.to(device)
                     optimiser.zero_grad()
@@ -944,18 +951,21 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             model.eval()
             losses_this_epoch = []
             f1_scores_this_epoch = []
-            for data in tqdm(valid_dataloader, leave=False, desc='Validating'):
-                image, mask = data['image'], data['mask']
-                image = image.to(device)
-                mask = mask.to(device)
-                pred = model(image)
-                loss = loss_fn(pred, mask)
-                losses_this_epoch.append(loss.item())
-                tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
-                f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="macro").cpu())
+            with torch.set_grad_enabled(False):
+                for data in tqdm(valid_dataloader, leave=False, desc='Validating'):
+                    image, mask = data['image'], data['mask']
+                    image = image.to(device)
+                    mask = mask.to(device)
+                    pred = model(image)
+                    loss = loss_fn(pred, mask)
+                    losses_this_epoch.append(loss.item())
+                    tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
+                    f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="macro").cpu())
 
             history['val_loss'].append(np.mean(losses_this_epoch))
             history['val_f1-score'].append(np.mean(f1_scores_this_epoch))
+            
+            #lr_scheduler.step()
 
             best_epoch = np.argmin(history['val_loss'])
             epoch_et = time.time() - epoch_st
@@ -977,9 +987,11 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             modelfilename = 'full.%d.%s.%s.model' % (
                 fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
             torch.save(best_epoch_state_dict, modelfilename)
-            trainingMetricsFilename = 'full.%d.%s.%s.%s.pdf' % (fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
+            trainingMetricsFilename = 'full.%d.%s.%s.%s.pdf' % (
+                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
         else:
-            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.pdf' % (RUNTIME_PARAMS['outerfold'], fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
+            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.pdf' % (
+                RUNTIME_PARAMS['outerfold'], fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
 
         saveTrainingMetrics(history, trainingMetricsFilename, trainingMetricsFilename)
 
@@ -1107,8 +1119,8 @@ def main(al, inputdir, widget):
         RUNTIME_PARAMS['device'] = torch.device('cpu')
         print('CUDA not available, will run on CPU')
         time.sleep(5)
-        
-    if RUNTIME_PARAMS['smoketest']: 
+
+    if RUNTIME_PARAMS['smoketest']:
         print('Smoke test enabled')
         time.sleep(5)
 
@@ -1187,7 +1199,8 @@ def main(al, inputdir, widget):
 
                 # if MY_PC and len(DIRS)>20: break
 
-        if RUNTIME_PARAMS['smoketest']: DIRS = DIRS[:20]
+        if RUNTIME_PARAMS['smoketest']:
+            DIRS = DIRS[:20]
         print('%d cases found' % (len(DIRS)))
 
         if RUNTIME_PARAMS['inputdir'] == 'train':
