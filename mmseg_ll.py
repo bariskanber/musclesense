@@ -633,7 +633,7 @@ def MYNET():
         activation = 'sigmoid'
 
     return smp.Unet(
-        encoder_name='resnet50', # 'resnet34'
+        encoder_name='timm-resnest14d', # 'resnext50_32x4d, resnet34'
         encoder_weights='imagenet',
         in_channels=3,
         classes=RUNTIME_PARAMS['classes'],
