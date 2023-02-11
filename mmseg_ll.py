@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 import os
-import pandas as pd
 import numpy as np
 import nibabel as nib
 import sys
 import glob
 import time
-import math
-import string
 import random
 import multiprocessing
 from joblib import Parallel, delayed
-import shutil
 import argparse
 import urllib.request
 from tqdm import tqdm
@@ -43,6 +39,7 @@ llshortdict = {'thigh': 'th', 'calf': 'cf'}
 
 scale_down_factor = 1
 
+# calf: 512x240; thigh: 512x256
 target_size_y, target_size_x = 320//scale_down_factor, 160//scale_down_factor
 
 RUNTIME_PARAMS = {'smoketest': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
@@ -279,8 +276,9 @@ def load_case_base(inputdir, DIR, test=False):
             dixfile = dixfile[::-1]
 
     dixon_460imgobj, dixon_460img = load_BFC_image(dixfile[0], test)
-    # if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
-    #    raise Exception('Fat and dixon_460 image resolutions are different for '+DIR)
+    if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
+       print('WARNING: Fat and dixon_460 image resolutions are different for '+DIR)
+       #assert(False)
 
     if 0 and dixfile[0] == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
         pass
@@ -633,8 +631,12 @@ def MYNET():
         activation = 'sigmoid'
 
     return smp.Unet(
-        encoder_name='timm-resnest14d', # 'resnext50_32x4d, resnet34'
+        encoder_name='resnext50_32x4d',  # 'resnext50_32x4d, resnet34' (~20M params)
         encoder_weights='imagenet',
+        encoder_depth=5-1,
+        decoder_channels=(128, 64, 32, 16),
+        decoder_use_batchnorm=True,
+#        decoder_attention_type='scse',
         in_channels=3,
         classes=RUNTIME_PARAMS['classes'],
         activation=activation
@@ -759,8 +761,10 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
         assert (slice < maskimg.shape[2])
 
         if RUNTIME_PARAMS['multiclass']:
-            img_to_save = scale_to_size(np.argmax(preds[i], axis=2), maskimg.shape[0], maskimg.shape[1])
-            std_img_to_save = scale_to_size(np.argmax(std_preds[i], axis=2), maskimg.shape[0], maskimg.shape[1])
+            axis = 0
+            assert (preds[i].shape[axis] == RUNTIME_PARAMS['classes'])
+            img_to_save = scale_to_size(np.argmax(preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
+            std_img_to_save = scale_to_size(np.argmax(std_preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
         else:
             img_to_save = scale_to_size(preds[i], maskimg.shape[0], maskimg.shape[1])
             std_img_to_save = scale_to_size(std_preds[i], maskimg.shape[0], maskimg.shape[1])
@@ -787,14 +791,14 @@ def saveTrainingMetrics(history, label, filename):
     plt.legend()
     plt.title(label)
     plt.subplot(122)
-    plt.plot(plt_x, history['f1-score'], label='f1-score')
-    plt.plot(plt_x, history['val_f1-score'], label='val_f1-score')
+    plt.plot(plt_x, history['acc'], label='acc')
+    plt.plot(plt_x, history['val_acc'], label='val_acc')
     plt.xlabel('epoch')
     plt.legend()
 
     ep = np.argmin(history['val_loss'])
-    infostr = 'val_loss %.4f@%d, val_f1-score %.4f' % (history['val_loss'][ep],
-                                                       ep+1, history['val_f1-score'][ep])
+    infostr = 'val_loss %.4f@%d, val_acc %.4f' % (history['val_loss'][ep],
+                                                       ep+1, history['val_acc'][ep])
 
     plt.title(infostr)
     plt.savefig(filename)
@@ -916,7 +920,7 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         device = RUNTIME_PARAMS['device']
         model = MYNET().to(device)
         optimiser = torch.optim.Adam(model.parameters(), lr=RUNTIME_PARAMS['lr'])
-        #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=1, gamma=0.8)
+        # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=1, gamma=0.8)
 
         def MMSegLoss(y_pred, y_true):
             loss1 = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
@@ -924,13 +928,13 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             return loss1.forward(y_pred, y_true)  # + loss2.forward(y_pred, y_true)
 
         loss_fn = MMSegLoss
-        history = {'loss': [], 'val_loss': [], 'f1-score': [], 'val_f1-score': []}
+        history = {'loss': [], 'val_loss': [], 'acc': [], 'val_acc': []}
         for epoch in range(5 if RUNTIME_PARAMS['smoketest'] else 5555):
             epoch_st = time.time()
 
             model.train()
             losses_this_epoch = []
-            f1_scores_this_epoch = []
+            accs_this_epoch = []
             with torch.set_grad_enabled(True):
                 for data in tqdm(train_dataloader, leave=False, desc='Training'):
                     image, mask = AugmentData(data['image'], data['mask'])
@@ -942,15 +946,16 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                     loss.backward()
                     optimiser.step()
                     losses_this_epoch.append(loss.item())
-                    tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
-                    f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="macro").cpu())
+                    pred_unhot = torch.argmax(pred,dim=1)
+                    mask_unhot = torch.argmax(mask,dim=1)
+                    accs_this_epoch.append(torch.sum(pred_unhot==mask_unhot).cpu()/pred_unhot.numel())
 
             history['loss'].append(np.mean(losses_this_epoch))
-            history['f1-score'].append(np.mean(f1_scores_this_epoch))
+            history['acc'].append(np.mean(accs_this_epoch))
 
             model.eval()
             losses_this_epoch = []
-            f1_scores_this_epoch = []
+            accs_this_epoch = []
             with torch.set_grad_enabled(False):
                 for data in tqdm(valid_dataloader, leave=False, desc='Validating'):
                     image, mask = data['image'], data['mask']
@@ -959,13 +964,14 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                     pred = model(image)
                     loss = loss_fn(pred, mask)
                     losses_this_epoch.append(loss.item())
-                    tp, fp, fn, tn = smp.metrics.get_stats(pred, mask, mode='multilabel', threshold=0.5)
-                    f1_scores_this_epoch.append(smp.metrics.f1_score(tp, fp, fn, tn, reduction="macro").cpu())
+                    pred_unhot = torch.argmax(pred,dim=1)
+                    mask_unhot = torch.argmax(mask,dim=1)
+                    accs_this_epoch.append(torch.sum(pred_unhot==mask_unhot).cpu()/pred_unhot.numel())
 
             history['val_loss'].append(np.mean(losses_this_epoch))
-            history['val_f1-score'].append(np.mean(f1_scores_this_epoch))
-            
-            #lr_scheduler.step()
+            history['val_acc'].append(np.mean(accs_this_epoch))
+
+            # lr_scheduler.step()
 
             best_epoch = np.argmin(history['val_loss'])
             epoch_et = time.time() - epoch_st
@@ -995,21 +1001,21 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
 
         saveTrainingMetrics(history, trainingMetricsFilename, trainingMetricsFilename)
 
-        best_epoch_val_DSC = history['val_f1-score'][best_epoch]
+        best_epoch_val_acc = history['val_acc'][best_epoch]
         best_epoch_val_loss = history['val_loss'][best_epoch]
-        best_epoch_train_DSC = history['f1-score'][best_epoch]
+        best_epoch_train_acc = history['acc'][best_epoch]
         best_epoch_train_loss = history['loss'][best_epoch]
 
         if fold == 0:
-            val_DSCs = [best_epoch_val_DSC]
+            val_accs = [best_epoch_val_acc]
             val_losses = [best_epoch_val_loss]
-            train_DSCs = [best_epoch_train_DSC]
+            train_accs = [best_epoch_train_acc]
             train_losses = [best_epoch_train_loss]
             best_epochs = [best_epoch]
         else:
-            val_DSCs.extend([best_epoch_val_DSC])
+            val_accs.extend([best_epoch_val_acc])
             val_losses.extend([best_epoch_val_loss])
-            train_DSCs.extend([best_epoch_train_DSC])
+            train_accs.extend([best_epoch_train_acc])
             train_losses.extend([best_epoch_train_loss])
             best_epochs.append(best_epoch)
 
@@ -1017,10 +1023,10 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         print('mean best epoch %d +- %d [range %d - %d]' % (np.mean(best_epochs),
               np.std(best_epochs), np.min(best_epochs), np.max(best_epochs)))
 
-        print('mean DSC [tra] %.4f +- %.4f [range %.4f - %.4f]' %
-              (np.mean(train_DSCs), np.std(train_DSCs), np.min(train_DSCs), np.max(train_DSCs)))
-        print('mean DSC [val] %.4f +- %.4f [range %.4f - %.4f]' %
-              (np.mean(val_DSCs), np.std(val_DSCs), np.min(val_DSCs), np.max(val_DSCs)))
+        print('mean acc [tra] %.4f +- %.4f [range %.4f - %.4f]' %
+              (np.mean(train_accs), np.std(train_accs), np.min(train_accs), np.max(train_accs)))
+        print('mean acc [val] %.4f +- %.4f [range %.4f - %.4f]' %
+              (np.mean(val_accs), np.std(val_accs), np.min(val_accs), np.max(val_accs)))
 
         print('mean loss [tra] %.4f +- %.4f [range %.4f - %.4f]' %
               (np.mean(train_losses), np.std(train_losses), np.min(train_losses), np.max(train_losses)))
@@ -1051,13 +1057,17 @@ def test(test_DIRS):
     print('test', test_DIRS)
     print('RUNTIME_PARAMS', RUNTIME_PARAMS)
     test_DIR, test_data, test_maskimg = read_and_normalize_data(test_DIRS, True)
-    assert (np.array_equal(np.unique(test_maskimg), [0, 1]) or np.array_equal(np.unique(test_maskimg), [0]))
+    if RUNTIME_PARAMS['multiclass']:
+        valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        assert (np.array_equal(np.unique(test_maskimg), valid_values) or np.array_equal(np.unique(test_maskimg), [0]))
+    else:
+        assert (np.array_equal(np.unique(test_maskimg), [0, 1]) or np.array_equal(np.unique(test_maskimg), [0]))
 
-    model = MYNET()
-    for fold in range(0, 5):
-        print('batch_size: %d' % (RUNTIME_PARAMS['batch_size']))
-
-        weightsfile = 'full.%d.%s.%s.weights' % (
+    device = RUNTIME_PARAMS['device']
+    model = MYNET().to(device)
+    for fold in range(5):
+        weightsfile = 'full.%d.%s.%s.model' % (
             fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
         weightsfile = os.path.join(INSTALL_DIR, weightsfile)
 
@@ -1076,9 +1086,26 @@ def test(test_DIRS):
             RUNTIME_PARAMS['widget']['text'] = 'Calculating mask (%.0f%%)...' % (100*float(fold+1)/5)
             RUNTIME_PARAMS['widget'].update()
 
-        model.load_weights(weightsfile)
+        model.load_state_dict(torch.load(weightsfile))
 
-        p = model.predict(test_data, batch_size=RUNTIME_PARAMS['batch_size'], verbose=1)
+        test_dataloader = DataLoader(
+            MMSegDataset(test_data, test_maskimg),
+            batch_size=RUNTIME_PARAMS['batch_size'],
+            shuffle=False,
+            num_workers=0
+        )
+
+        p = None
+        for data in tqdm(test_dataloader, leave=False, desc='Inferring'):
+            image, mask = data['image'], data['mask']
+            image = image.to(device)
+            mask = mask.to(device)
+            p_this = model(image).detach().cpu()
+            if p is None:
+                p = p_this
+            else:
+                p = np.concatenate((p, p_this), axis=0)
+
         p = np.expand_dims(p, axis=0)
 
         if fold == 0:
@@ -1093,7 +1120,7 @@ def test(test_DIRS):
 
 #    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data, test_maskimg, mean_preds, std_preds, test_DIR)
-    return DSCs
+    return None
 
 
 def main(al, inputdir, widget):
