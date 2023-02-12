@@ -24,15 +24,9 @@ from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
 from utils import numpy_dice_coefficient, scale2D
 from nifti_tools import save_nifti
 
-import socket
-MY_PC = 1 if socket.gethostname() == "bkanber-gpu" else 0
-
-if MY_PC:
-    import matplotlib.pyplot as plt
-else:
-    import matplotlib as mpl
-    mpl.use('Agg')
-    import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 
 DEBUG = False
 llshortdict = {'thigh': 'th', 'calf': 'cf'}
@@ -49,7 +43,7 @@ INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR', INSTALL_DIR)
 print('MODULE_NAME', MODULE_NAME)
 
-
+     
 def get_subject_id_from_DIR(DIR):
     DIR = DIR.split('^')  # e.g. thigh^brcalskd/BRCALSKD_056C
     assert (len(DIR) >= 2)
@@ -280,8 +274,8 @@ def load_case_base(inputdir, DIR, test=False):
 
     dixon_460imgobj, dixon_460img = load_BFC_image(filename, test)
     if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
-       print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
        RUNTIME_PARAMS['caution']=True
+       if DEBUG: print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
 
     if 0 and filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
         pass
@@ -317,8 +311,8 @@ def load_case_base(inputdir, DIR, test=False):
 
     dixon_575imgobj, dixon_575img = load_BFC_image(filename, test)
     if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
-        print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
         RUNTIME_PARAMS['caution']=True
+        if DEBUG: print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
 
     if filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
         pass
@@ -448,7 +442,7 @@ def load_data(DIRS, test=False):
         raise Exception('No data to load')
 
     print('Reading %d item(s)...' % len(DIRS))
-    n_jobs = 1 if MY_PC else max(1, multiprocessing.cpu_count()//2)
+    n_jobs = max(1, multiprocessing.cpu_count()//2)
 
     ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, test) for DIR in DIRS)
 
@@ -492,43 +486,25 @@ def read_and_normalize_data(DIRS, test=False):
 
     DIR_new, fatimg_new, waterimg_new, dixon_345img_new, dixon_575img_new, maskimg_new = [], [], [], [], [], []
     for imgi in range(0, len(DIR)):
-        if not RUNTIME_PARAMS['multiclass']:
-            if test:
-                assert (np.array_equal(np.unique(maskimg[imgi]), [0, 1])
-                        or np.array_equal(np.unique(maskimg[imgi]), [0]))
-            else:
-                assert (np.array_equal(np.unique(maskimg[imgi]), [0, 1]))
-        else:
-            valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-            if test:
-                assert (np.array_equal(np.unique(maskimg[imgi]), valid_values)
-                        or np.array_equal(np.unique(maskimg[imgi]), [0]))
-            else:
-                if not np.array_equal(np.unique(maskimg[imgi]), valid_values):
-                    if DEBUG:
-                        print(f'EXCLUDE: np.unique(maskimg[imgi])={np.unique(maskimg[imgi])} for {DIRS[imgi]}')
-                    continue
-
         for slice in range(0, fatimg[imgi].shape[2]):
             mask_validity = valid_mask(scale_to_target(maskimg[imgi][:, :, slice]), DIR[imgi]+'^slice'+str(slice))
             TO_ADD = False
             if mask_validity == MASK_VALIDITY_VALID:
                 TO_ADD = True
-            elif mask_validity == MASK_VALIDITY_SINGLESIDED and not RUNTIME_PARAMS['multiclass']:
+            elif mask_validity == MASK_VALIDITY_SINGLESIDED:
                 half_size = maskimg[imgi].shape[0]//2
-                if valid_mask(scale_to_target(maskimg[imgi][:half_size, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side1') == MASK_VALIDITY_VALID:
+                if valid_mask(scale_to_target(maskimg[imgi][:half_size, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side1') in [MASK_VALIDITY_VALID, MASK_VALIDITY_SINGLESIDED]:
                     for img_it in (fatimg, waterimg, dixon_345img, dixon_575img, maskimg):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][:half_size, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
-                elif valid_mask(scale_to_target(maskimg[imgi][half_size:, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side2') == MASK_VALIDITY_VALID:
+                elif valid_mask(scale_to_target(maskimg[imgi][half_size:, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side2') in [MASK_VALIDITY_VALID, MASK_VALIDITY_SINGLESIDED]:
                     for img_it in (fatimg, waterimg, dixon_345img, dixon_575img, maskimg):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][half_size:, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
                 else:
-                    TO_ADD = test
+                    assert(False)
             else:
                 TO_ADD = test
 
@@ -541,25 +517,34 @@ def read_and_normalize_data(DIRS, test=False):
 
                 if not RUNTIME_PARAMS['multiclass']:
                     if test:
-                        assert (np.array_equal(np.unique(maskslice), [0, 1])
-                                or np.array_equal(np.unique(maskslice), [0]))
+                        assert(np.array_equal(np.unique(maskslice), [0, 1]) or np.array_equal(np.unique(maskslice), [0]))
                     else:
-                        assert (np.array_equal(np.unique(maskslice), [0, 1]))
+                        assert(np.array_equal(np.unique(maskslice), [0, 1]))
                 else:
-                    valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
-                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-                    if test:
-                        if not np.array_equal(np.unique(maskslice), valid_values) and not np.array_equal(np.unique(maskslice), [0]):
-                            if DEBUG:
-                                print(
-                                    f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
-                            continue
+                    if RUNTIME_PARAMS['al'] == 'calf':
+                        valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17]  
+                        valid_values1 = [0, 1, 2, 3, 4, 5, 6, 7]  
+                        valid_values2 = [0, 11, 12, 13, 14, 15, 16, 17]  
                     else:
-                        if not np.array_equal(np.unique(maskslice), valid_values):
-                            if DEBUG:
-                                print(
-                                    f'EXCLUDE: np.unique(maskslice)={np.unique(maskslice)} for {DIRS[imgi]}, slice={slice}')
-                            continue
+                        valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+                        valid_values1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+                        valid_values2 = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+                        
+                    ok=False
+                    if mask_validity==MASK_VALIDITY_SINGLESIDED:
+                        if (np.array_equal(np.unique(maskslice), valid_values1) or
+                                np.array_equal(np.unique(maskslice), valid_values2)):
+                            ok = True
+                    elif test:
+                        if (np.array_equal(np.unique(maskslice), valid_values) or
+                                np.array_equal(np.unique(maskslice), [0])
+                        ): ok = True
+                    else:
+                        if np.array_equal(np.unique(maskslice), valid_values): ok = True
+
+                    if not ok:
+                        if DEBUG: print(f'DEBUG: np.unique(maskslice)={np.unique(maskslice)} for {DIR}, slice={slice}, test={test}')
+                        continue
 
                 fatimg_new.append(fatslice)
                 waterimg_new.append(waterslice)
@@ -865,15 +850,6 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
     test_DIR, test_data, test_maskimg = read_and_normalize_data(test_DIRS, True)
     train_DIR, train_data, train_maskimg = read_and_normalize_data(train_DIRS)
 
-    if RUNTIME_PARAMS['multiclass']:
-        valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-        assert (np.array_equal(np.unique(train_maskimg), valid_values))
-        assert (np.array_equal(np.unique(test_maskimg), valid_values) or np.array_equal(np.unique(test_maskimg), [0]))
-    else:
-        assert (np.array_equal(np.unique(train_maskimg), [0, 1]))
-        assert (np.array_equal(np.unique(test_maskimg), [0, 1]) or np.array_equal(np.unique(test_maskimg), [0]))
-
     outer_train_subjects = []
     for i in range(0, len(train_DIR)):
         outer_train_subjects.append(get_subject_id_from_DIR(train_DIR[i]))
@@ -954,9 +930,13 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                     loss.backward()
                     optimiser.step()
                     losses_this_epoch.append(loss.item())
-                    pred_unhot = torch.argmax(pred,dim=1)
-                    mask_unhot = torch.argmax(mask,dim=1)
-                    accs_this_epoch.append(torch.sum(pred_unhot==mask_unhot).cpu()/pred_unhot.numel())
+                    if RUNTIME_PARAMS['multiclass']:
+                        pred = torch.argmax(pred,dim=1)
+                        mask = torch.argmax(mask,dim=1)
+                    else:
+                        pred[pred<0.5]=0
+                        pred[pred>=0.5]=1
+                    accs_this_epoch.append(torch.sum(pred==mask).cpu()/pred.numel())
 
             history['loss'].append(np.mean(losses_this_epoch))
             history['acc'].append(np.mean(accs_this_epoch))
@@ -972,9 +952,13 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                     pred = model(image)
                     loss = loss_fn(pred, mask)
                     losses_this_epoch.append(loss.item())
-                    pred_unhot = torch.argmax(pred,dim=1)
-                    mask_unhot = torch.argmax(mask,dim=1)
-                    accs_this_epoch.append(torch.sum(pred_unhot==mask_unhot).cpu()/pred_unhot.numel())
+                    if RUNTIME_PARAMS['multiclass']:
+                        pred = torch.argmax(pred,dim=1)
+                        mask = torch.argmax(mask,dim=1)
+                    else:
+                        pred[pred<0.5]=0
+                        pred[pred>=0.5]=1
+                    accs_this_epoch.append(torch.sum(pred==mask).cpu()/pred.numel())
 
             history['val_loss'].append(np.mean(losses_this_epoch))
             history['val_acc'].append(np.mean(accs_this_epoch))
@@ -1027,7 +1011,7 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             train_losses.extend([best_epoch_train_loss])
             best_epochs.append(best_epoch)
 
-        print('Fold %d [%s, batch_size=%d]' % (fold+1, RUNTIME_PARAMS['inputdir'], RUNTIME_PARAMS['batch_size']))
+        print('Fold %d [%s, %s, batch_size=%d]' % (fold+1, RUNTIME_PARAMS['al'], RUNTIME_PARAMS['inputdir'], RUNTIME_PARAMS['batch_size']))
         print('mean best epoch %d +- %d [range %d - %d]' % (np.mean(best_epochs),
               np.std(best_epochs), np.min(best_epochs), np.max(best_epochs)))
 
@@ -1065,13 +1049,7 @@ def test(test_DIRS):
     print('test', test_DIRS)
     print('RUNTIME_PARAMS', RUNTIME_PARAMS)
     test_DIR, test_data, test_maskimg = read_and_normalize_data(test_DIRS, True)
-    if RUNTIME_PARAMS['multiclass']:
-        valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17] if RUNTIME_PARAMS['al'] == 'calf' else [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-        assert (np.array_equal(np.unique(test_maskimg), valid_values) or np.array_equal(np.unique(test_maskimg), [0]))
-    else:
-        assert (np.array_equal(np.unique(test_maskimg), [0, 1]) or np.array_equal(np.unique(test_maskimg), [0]))
-
+    
     device = RUNTIME_PARAMS['device']
     model = MYNET().to(device)
     for fold in range(5):
@@ -1135,7 +1113,7 @@ def main(al, inputdir, widget):
     RUNTIME_PARAMS['al'] = al
     RUNTIME_PARAMS['inputdir'] = inputdir
     RUNTIME_PARAMS['widget'] = widget
-    RUNTIME_PARAMS['multiclass'] = True  # individual muscle segmentation (vs. whole muscle)
+    RUNTIME_PARAMS['multiclass'] = False  # individual muscle segmentation (vs. whole muscle)
 
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text'] = 'Calculating mask...'
@@ -1232,7 +1210,7 @@ def main(al, inputdir, widget):
 
                 DIRS.append(ll+'^'+de)
 
-                # if MY_PC and len(DIRS)>20: break
+                # if False and len(DIRS)>20: break
 
         if RUNTIME_PARAMS['smoketest']:
             DIRS = DIRS[:20]
