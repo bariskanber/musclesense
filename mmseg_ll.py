@@ -42,7 +42,7 @@ scale_down_factor = 1
 # calf: 512x240; thigh: 512x256
 target_size_y, target_size_x = 320//scale_down_factor, 160//scale_down_factor
 
-RUNTIME_PARAMS = {'smoketest': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
+RUNTIME_PARAMS = {'smoketest': False, 'caution': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
 
 MODULE_NAME = os.path.basename(__file__)
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -172,6 +172,23 @@ def load_BFC_image(filename, test):
     nibobj = nib.load(BFCfilename)
     return nibobj, nibobj.get_fdata()
 
+def get_fmf(pattern):
+        """Get first file matching given pattern or raise an exception
+
+        Args:
+            pattern (str): File pattern to match
+
+        Returns:
+            filename: The first matching filename
+            
+        Example:
+            get_fmf('/home/myfile.*')
+        """
+        files = glob.glob(pattern)
+        if len(files) < 1:
+            print(f'ERROR: No files found matching {pattern}')
+            assert (False)
+        return files[0]
 
 def load_case_base(inputdir, DIR, test=False):
     if DEBUG:
@@ -181,35 +198,20 @@ def load_case_base(inputdir, DIR, test=False):
     ll = TK[0]
     DIR = TK[1]
 
-    if 'Amy_GOSH' in DIR:
-        filename = glob.glob(os.path.join(DIR, '*DIXON_F.nii*'))[0]
-    elif inputdir != 'train' and inputdir != 'validate':
-        pattern = os.path.join(DIR, 'fat.nii*')
-        files = glob.glob(pattern)
-        if len(files) < 1:
-            print(f'ERROR: No files found matching {pattern}')
-            assert (False)
-        filename = files[0]
+    if inputdir != 'train' and inputdir != 'validate':
+        filename = get_fmf(os.path.join(DIR, 'fat.nii*'))
     else:
         filename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/fat.nii.gz')
         if not os.path.exists(filename):
             filename = os.path.join(DIR, 'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
 
-    if DEBUG:
-        print('loading fat image')
     fatimgobj, fatimg = load_BFC_image(filename, test)
-
     numvox = np.product(fatimg.shape)
     if np.sum(fatimg > 100)/numvox >= 0.30:
-        fatimg *= 0
         raise Exception('Failed QC test '+DIR)
 
-    if DEBUG:
-        print('water image')
-    if 'Amy_GOSH' in DIR:
-        filename = glob.glob(os.path.join(DIR, '*DIXON_W.nii*'))[0]
-    elif inputdir != 'train' and inputdir != 'validate':
-        filename = glob.glob(os.path.join(DIR, 'water.nii*'))[0]
+    if inputdir != 'train' and inputdir != 'validate':
+        filename = get_fmf(os.path.join(DIR, 'water.nii*'))
     else:
         filename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/water.nii.gz')
         if not os.path.exists(filename):
@@ -219,11 +221,8 @@ def load_case_base(inputdir, DIR, test=False):
     if not np.array_equal(fatimgobj.header.get_zooms(), waterimgobj.header.get_zooms()):
         raise Exception('Fat and water image resolutions are different for '+DIR)
 
-    if DEBUG:
-        print('loading DIXON 345ms image')
-
     if inputdir != 'train' and inputdir != 'validate':
-        dixfile = glob.glob(os.path.join(DIR, 'dixon345.nii*'))
+        filename = get_fmf(os.path.join(DIR, 'dixon345.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_345_'+ll+'.nii.gz')
                             )  # e.g. 1-0017-Dixon_TE_345_calf.nii.gz
@@ -246,14 +245,16 @@ def load_case_base(inputdir, DIR, test=False):
 
         if id1 > id2:
             dixfile = dixfile[::-1]
+            
+        filename = dixfile[0]
 
-    dixon_345imgobj, dixon_345img = load_BFC_image(dixfile[0], test)
-    assert checkDixonImage(dixon_345img), dixfile[0]+' may be a phase image'
+    dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
+    assert checkDixonImage(dixon_345img), filename+' may be a phase image'
     if not np.array_equal(fatimgobj.header.get_zooms(), dixon_345imgobj.header.get_zooms()):
         raise Exception('Fat and dixon_345 image resolutions are different for '+DIR)
 
     if inputdir != 'train' and inputdir != 'validate':
-        dixfile = glob.glob(os.path.join(DIR, 'dixon460.nii*'))
+        filename = get_fmf(os.path.join(DIR, 'dixon460.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_460_'+ll+'.nii.gz'))
         if len(dixfile) == 0:
@@ -274,21 +275,23 @@ def load_case_base(inputdir, DIR, test=False):
 
         if id1 > id2:
             dixfile = dixfile[::-1]
+            
+        filename = dixfile[0]
 
-    dixon_460imgobj, dixon_460img = load_BFC_image(dixfile[0], test)
+    dixon_460imgobj, dixon_460img = load_BFC_image(filename, test)
     if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
-       print('WARNING: Fat and dixon_460 image resolutions are different for '+DIR)
-       #assert(False)
+       print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
+       RUNTIME_PARAMS['caution']=True
 
-    if 0 and dixfile[0] == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
+    if 0 and filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
         pass
     else:
-        assert checkDixonImage(dixon_460img), dixfile[0]+' may be a phase image'
+        assert checkDixonImage(dixon_460img), filename+' may be a phase image'
 
     fatimg = dixon_460img
 
     if inputdir != 'train' and inputdir != 'validate':
-        dixfile = glob.glob(os.path.join(DIR, 'dixon575.nii*'))
+        filename = get_fmf(os.path.join(DIR, 'dixon575.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_575_'+ll+'.nii.gz'))
         if len(dixfile) == 0:
@@ -309,15 +312,18 @@ def load_case_base(inputdir, DIR, test=False):
 
         if id1 > id2:
             dixfile = dixfile[::-1]
+            
+        filename = dixfile[0]
 
-    dixon_575imgobj, dixon_575img = load_BFC_image(dixfile[0], test)
-    # if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
-    #    raise Exception('Fat and dixon_575 image resolutions are different for '+DIR)
+    dixon_575imgobj, dixon_575img = load_BFC_image(filename, test)
+    if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
+        print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
+        RUNTIME_PARAMS['caution']=True
 
-    if dixfile[0] == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
+    if filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
         pass
     else:
-        assert checkDixonImage(dixon_575img), dixfile[0]+' may be a phase image'
+        assert checkDixonImage(dixon_575img), filename+' may be a phase image'
 
     # Mask selection (consider not using _af which are poor masks)
     if DEBUG:
@@ -365,8 +371,6 @@ def load_case_base(inputdir, DIR, test=False):
     # if not os.path.exists(filename):
     #    filename=None
 
-    if DEBUG:
-        print('loading mask')
     if filename is None:
         maskimg = np.zeros(fatimg.shape, dtype=np.uint8)
     else:
@@ -388,8 +392,6 @@ def load_case_base(inputdir, DIR, test=False):
     if ll == 'calf' and DIR == 'brcalskd/BRCALSKD_002C':
         maskimg[:, :, 6] = 0
 
-    if DEBUG:
-        print('Converting/standardising mask')
     if not RUNTIME_PARAMS['multiclass']:
         if filename is not None and not convertMRCCentreMaskToBinary(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToBinary returned False')
@@ -726,6 +728,12 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
 
         filename = "%s/cnn-%s.nii.gz" % (DIR, ll)
         filename_std = "%s/std-%s.nii.gz" % (DIR, ll)
+        if RUNTIME_PARAMS['multiclass']:
+            filename=filename.replace('.nii.gz','-multiclass.nii.gz')
+            filename_std=filename_std.replace('.nii.gz','-multiclass.nii.gz')
+        if RUNTIME_PARAMS['caution']:
+            filename=filename.replace('.nii.gz','-caution.nii.gz')
+            filename_std=filename_std.replace('.nii.gz','-caution.nii.gz')
         maskimg = None
         maskimg_std = None
 
