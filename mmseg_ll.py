@@ -149,22 +149,11 @@ def checkDixonImage(dixon_img):
 
 
 def load_BFC_image(filename, test):
-    if 1 or not test or RUNTIME_PARAMS['al'] == 'calf':
+    if True:
         if not os.path.exists(filename):
             raise Exception(f'ERROR: the following file does not exist {filename}')
         nibobj = nib.load(filename)
         return nibobj, nibobj.get_fdata()
-
-    BFCfilename = filename.replace('.nii.gz', '-bfc.nii.gz')
-    if os.path.exists(BFCfilename):
-        nibobj = nib.load(BFCfilename)
-        return nibobj, nibobj.get_fdata()
-
-    print('Bias correcting '+filename)
-    os.system("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/media/bkanber/WORK/mrtools/niftk-17.5.0/bin/ && /media/bkanber/WORK/mrtools/niftk-17.5.0/bin/niftkN4BiasFieldCorrection --sub 2 -i '%s' -o '%s'" % (filename, BFCfilename))
-
-    nibobj = nib.load(BFCfilename)
-    return nibobj, nibobj.get_fdata()
 
 def get_fmf(pattern):
         """Get first file matching given pattern or raise an exception
@@ -184,7 +173,8 @@ def get_fmf(pattern):
             assert (False)
         return files[0]
 
-def load_case_base(inputdir, DIR, test=False):
+def load_case_base(inputdir, DIR, multiclass, test):
+    CAUTION=False
     if DEBUG:
         print('load_case', DIR)
     TK = DIR.split('^')
@@ -274,7 +264,7 @@ def load_case_base(inputdir, DIR, test=False):
 
     dixon_460imgobj, dixon_460img = load_BFC_image(filename, test)
     if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
-       RUNTIME_PARAMS['caution']=True
+       CAUTION=True
        if DEBUG: print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
 
     if 0 and filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
@@ -311,7 +301,7 @@ def load_case_base(inputdir, DIR, test=False):
 
     dixon_575imgobj, dixon_575img = load_BFC_image(filename, test)
     if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
-        RUNTIME_PARAMS['caution']=True
+        CAUTION=True
         if DEBUG: print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
 
     if filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
@@ -386,7 +376,7 @@ def load_case_base(inputdir, DIR, test=False):
     if ll == 'calf' and DIR == 'brcalskd/BRCALSKD_002C':
         maskimg[:, :, 6] = 0
 
-    if not RUNTIME_PARAMS['multiclass']:
+    if not multiclass:
         if filename is not None and not convertMRCCentreMaskToBinary(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToBinary returned False')
 
@@ -407,12 +397,12 @@ def load_case_base(inputdir, DIR, test=False):
         if filename is not None and not convertMRCCentreMaskToStandard(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToStandard returned False')
 
-    return (fatimg, waterimg, dixon_345img, dixon_575img, maskimg)
+    return (fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION)
 
 
-def load_case(inputdir, DIR, test=False):
+def load_case(inputdir, DIR, multiclass, test=False):
     try:
-        (fatimg, waterimg, dixon_345img, dixon_575img, maskimg) = load_case_base(inputdir, DIR, test)
+        (fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION) = load_case_base(inputdir, DIR, multiclass, test)
     except Exception as e:
         print(repr(e))
         print('Could not get image data for '+DIR)
@@ -432,7 +422,7 @@ def load_case(inputdir, DIR, test=False):
 
     maskimg = maskimg.astype(np.uint8)
 
-    return DIR, fatimg, waterimg, dixon_345img, dixon_575img, maskimg
+    return DIR, fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION
 
 
 def load_data(DIRS, test=False):
@@ -444,20 +434,28 @@ def load_data(DIRS, test=False):
     print('Reading %d item(s)...' % len(DIRS))
     n_jobs = max(1, multiprocessing.cpu_count()//2)
 
-    ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, test) for DIR in DIRS)
+    ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, RUNTIME_PARAMS['multiclass'], test) for DIR in DIRS)
 
-    X_DIR, X_fatimg, X_waterimg, X_dixon_345img, X_dixon_575img, X_maskimg = zip(*ret)
+    X_DIR, X_fatimg, X_waterimg, X_dixon_345img, X_dixon_575img, X_maskimg, X_CAUTION = zip(*ret)
 
     print('Read data time: {} seconds'.format(round(time.time() - start_time, 2)))
+    
+    if np.sum(X_CAUTION)>0: RUNTIME_PARAMS['caution'] = True
 
-    return list(filter(lambda x: x is not None, X_DIR)), list(filter(lambda x: x is not None, X_fatimg)), list(filter(lambda x: x is not None, X_waterimg)), list(filter(lambda x: x is not None, X_dixon_345img)), list(filter(lambda x: x is not None, X_dixon_575img)), list(filter(lambda x: x is not None, X_maskimg))
+    return list(filter(lambda x: x is not None, X_DIR)), \
+        list(filter(lambda x: x is not None, X_fatimg)), \
+        list(filter(lambda x: x is not None, X_waterimg)), \
+        list(filter(lambda x: x is not None, X_dixon_345img)), \
+        list(filter(lambda x: x is not None, X_dixon_575img)), \
+        list(filter(lambda x: x is not None, X_maskimg))
 
 
 def scale_to_size(img, target_size_y, target_size_x):
     if RUNTIME_PARAMS['multiclass']:
+        print(img.dtype,np.unique(img))
         return scale2D(img, target_size_y, target_size_x, order=0, mode='nearest')
     else:
-        return scale2D(img, target_size_y, target_size_x, order=3, mode='nearest', prefilter=True)
+        return scale2D(img, target_size_y, target_size_x, order=3, mode='nearest')
 
 
 def scale_to_target(img):
@@ -713,9 +711,9 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
 
         filename = "%s/cnn-%s.nii.gz" % (DIR, ll)
         filename_std = "%s/std-%s.nii.gz" % (DIR, ll)
-        if RUNTIME_PARAMS['multiclass']:
-            filename=filename.replace('.nii.gz','-multiclass.nii.gz')
-            filename_std=filename_std.replace('.nii.gz','-multiclass.nii.gz')
+        #if RUNTIME_PARAMS['multiclass']:
+        #    filename=filename.replace('.nii.gz','-multiclass.nii.gz')
+        #    filename_std=filename_std.replace('.nii.gz','-multiclass.nii.gz')
         if RUNTIME_PARAMS['caution']:
             filename=filename.replace('.nii.gz','-caution.nii.gz')
             filename_std=filename_std.replace('.nii.gz','-caution.nii.gz')
@@ -759,8 +757,8 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
             img_to_save = scale_to_size(np.argmax(preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
             std_img_to_save = scale_to_size(np.argmax(std_preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
         else:
-            img_to_save = scale_to_size(preds[i], maskimg.shape[0], maskimg.shape[1])
-            std_img_to_save = scale_to_size(std_preds[i], maskimg.shape[0], maskimg.shape[1])
+            img_to_save = scale_to_size(preds[i,0], maskimg.shape[0], maskimg.shape[1])
+            std_img_to_save = scale_to_size(std_preds[i,0], maskimg.shape[0], maskimg.shape[1])
 
         maskimg[:, :, slice] = img_to_save
         maskimg_std[:, :, slice] = std_img_to_save
@@ -1011,7 +1009,14 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             train_losses.extend([best_epoch_train_loss])
             best_epochs.append(best_epoch)
 
-        print('Fold %d [%s, %s, batch_size=%d]' % (fold+1, RUNTIME_PARAMS['al'], RUNTIME_PARAMS['inputdir'], RUNTIME_PARAMS['batch_size']))
+        print('Fold %d [%s, %s, batch_size=%d, multiclass=%s]' % (
+                fold+1, 
+                RUNTIME_PARAMS['al'], 
+                RUNTIME_PARAMS['inputdir'], 
+                RUNTIME_PARAMS['batch_size'], 
+                RUNTIME_PARAMS['multiclass']
+                )
+            )
         print('mean best epoch %d +- %d [range %d - %d]' % (np.mean(best_epochs),
               np.std(best_epochs), np.min(best_epochs), np.max(best_epochs)))
 
@@ -1113,7 +1118,7 @@ def main(al, inputdir, widget):
     RUNTIME_PARAMS['al'] = al
     RUNTIME_PARAMS['inputdir'] = inputdir
     RUNTIME_PARAMS['widget'] = widget
-    RUNTIME_PARAMS['multiclass'] = False  # individual muscle segmentation (vs. whole muscle)
+    RUNTIME_PARAMS['multiclass'] = True  # individual muscle segmentation (vs. whole muscle)
 
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text'] = 'Calculating mask...'

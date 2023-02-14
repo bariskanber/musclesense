@@ -16,7 +16,7 @@ if platform.system()=='Linux':
     print('Installing fonts')
     os.system('mkdir ~/.fonts')
 
-    assert(os.system('cp %s/fantasque-sans-mono/TTF/FantasqueSansMono-*.ttf ~/.fonts'%(INSTALL_DIR))==0)
+    assert(os.system('cp %s/assets/fantasque-sans-mono/TTF/FantasqueSansMono-*.ttf ~/.fonts'%(INSTALL_DIR))==0)
 
     assert(os.system('fc-cache -f -v')==0)
 

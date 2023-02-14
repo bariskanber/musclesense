@@ -765,8 +765,14 @@ def sliceSelectorGUI(studyToOpen):
                     break
 
             target_file=os.path.join(dirToSaveTo,'cnn-'+body_part+'-take-'+str(saveNum)+'.nii.gz')
-            shutil.move(os.path.join(TEMP_DIR,'cnn-'+body_part+'.nii.gz'),
-                target_file)
+            
+            expectedFile = os.path.join(TEMP_DIR,'cnn-'+body_part+'.nii.gz')
+            if os.path.exists(expectedFile.replace('.nii.gz','-caution.nii.gz')):
+                expectedFile = expectedFile.replace('.nii.gz','-caution.nii.gz')
+                target_file = target_file.replace('.nii.gz','-caution.nii.gz')
+                displayInfo('Musclesense has raised caution about the study')
+                
+            shutil.move(expectedFile,target_file)
 
             displayInfo('The generated mask has been saved as '+target_file)
 
@@ -982,9 +988,9 @@ def sliceSelectorGUI(studyToOpen):
     showHideMaskButton = tkinter.Button(master=tab_home, text="Hide mask", command=showHideMask)
     showHideMaskButton.pack(in_=frame2,side=tkinter.LEFT)
 
-    icon_select=PhotoImage(file=os.path.join(INSTALL_DIR,'icons8-open-door-16.png'))
-    icon_delete=PhotoImage(file=os.path.join(INSTALL_DIR,'icons8-erase-24.png'))
-    icon_copy=PhotoImage(file=os.path.join(INSTALL_DIR,'icons8-copy-24.png'))
+    icon_select=PhotoImage(file=os.path.join(os.path.join(INSTALL_DIR,'assets'),'icons8-open-door-16.png'))
+    icon_delete=PhotoImage(file=os.path.join(os.path.join(INSTALL_DIR,'assets'),'icons8-erase-24.png'))
+    icon_copy=PhotoImage(file=os.path.join(os.path.join(INSTALL_DIR,'assets'),'icons8-copy-24.png'))
 
     frame=tkinter.Frame(tab_home)
     frame.pack(side=tkinter.TOP,anchor="w")
@@ -1118,7 +1124,7 @@ def sliceSelectorGUI(studyToOpen):
 
     root.config(menu=menubar)
     root.protocol("WM_DELETE_WINDOW", doClose)
-    root.iconphoto(False, PhotoImage(file=os.path.join(INSTALL_DIR,'M-icon-32.png')))
+    root.iconphoto(False, PhotoImage(file=os.path.join(os.path.join(INSTALL_DIR,'assets'),'M-icon-32.png')))
 
     loadSettings()
 
