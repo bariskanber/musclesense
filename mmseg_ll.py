@@ -1193,6 +1193,7 @@ def main(al, inputdir, widget):
                 ]:
                     if DEBUG:
                         print('skipping %s that has bad mask' % (de))
+                    assert(False)
                     continue
 
                 if False and ll == 'calf' and de in [

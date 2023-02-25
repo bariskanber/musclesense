@@ -66,6 +66,21 @@ imagetypes={
     IMAGE_TYPE_MASK:'maskimg',
 }
 
+def TextWithScrollBars(frame, width=80, height=10, wrap="none"):
+    textContainer = Frame(frame, borderwidth=1, relief="sunken")
+    text = Text(textContainer, width=width, height=height, wrap=wrap, borderwidth=0)
+    textVsb = Scrollbar(textContainer, orient="vertical", command=text.yview)
+    textHsb = Scrollbar(textContainer, orient="horizontal", command=text.xview)
+    text.configure(yscrollcommand=textVsb.set, xscrollcommand=textHsb.set)
+
+    text.grid(row=0, column=0, sticky="nsew")
+    textVsb.grid(row=0, column=1, sticky="ns")
+    textHsb.grid(row=1, column=0, sticky="ew")
+
+    textContainer.grid_rowconfigure(0, weight=1)
+    textContainer.grid_columnconfigure(0, weight=1)
+    return textContainer, text
+
 def displayInfo(info):
     tkinter.messagebox.showinfo('Musclesense workbench',message=info+' '+'\t'*2)
 
@@ -134,7 +149,6 @@ def sliceSelectorGUI(studyToOpen):
     root.dixon_460img=None
     root.dixon_575img=None
     root.maskimg=None
-    root.binimg=None
     root.sli=0
     root.selectedSlices=[]
     root.showMask=True
@@ -215,14 +229,14 @@ def sliceSelectorGUI(studyToOpen):
             overlayBaseImage=getattr(root,imagetypes[root.overlayMaskOn])
             add_params={}
 
-        if overlayBaseImage is None and root.binimg is not None:
-            ax3.imshow(prepForDisplay(overlayBaseImage,root.sli,empty_shape=root.binimg.shape[0:2]),cmap='gray')
+        if overlayBaseImage is None and root.maskimg is not None:
+            ax3.imshow(prepForDisplay(overlayBaseImage,root.sli,empty_shape=root.maskimg.shape[0:2]),cmap='gray')
         else:
             ax3.imshow(prepForDisplay(overlayBaseImage,root.sli),cmap='gray',**add_params)
  
-        if root.binimg is not None and root.showMask:
-            cmap='winter' if root.sli in root.selectedSlices else 'summer'
-            transp_imshow(ax3,prepForDisplay(root.binimg,root.sli),cmap=cmap,alpha=0.3)
+        if root.maskimg is not None and root.showMask:
+            cmap='tab20b' if root.sli in root.selectedSlices else 'tab20c'
+            transp_imshow(ax3,prepForDisplay(root.maskimg,root.sli),cmap=cmap,alpha=0.6,tvmin=0,tvmax=1)
 
         ax3.set_title(root.overlayMaskOn+' & Muscle mask'+text)
 
@@ -555,7 +569,6 @@ def sliceSelectorGUI(studyToOpen):
         root.sli=0
         bodypart_combobox.set('')
 
-        root.binimg=None
         root.ffimg=None
         root.showMask=True
 
@@ -573,10 +586,8 @@ def sliceSelectorGUI(studyToOpen):
             calcStatistics()
 
     def calcStatistics():
-        if root.ffimg is None or root.binimg is None:
-            report='Need fat and water images and a muscle mask to calculate statistics'
+        if root.ffimg is None or root.maskimg is None:
             statistics_control.delete(1.0,tkinter.END)
-            #statistics_control.insert(tkinter.INSERT,report)
             return
 
         if root.selectedSlices is None or len(root.selectedSlices)<1:
@@ -594,40 +605,38 @@ def sliceSelectorGUI(studyToOpen):
         slice_resolution=root.fatimgobj.header.get_zooms()[:2]
         slice_resolution=np.prod(slice_resolution)
 
-        if not np.array_equal(np.unique(root.binimg),[0,1]):
-            report="Binarised mask unique values not 0 and 1"
-            statistics_control.delete(1.0,tkinter.END)
-            statistics_control.insert(tkinter.INSERT,report)
-            return
+        sep=',' if args.csv.strip().lower()!='none' else '\t'
 
-        sep='\t'
-        if args.csv.strip().lower()!='none': sep=','
+        report='slice'
+        for tissue_type in np.unique(root.maskimg): 
+            if tissue_type==int(tissue_type): tissue_type=int(tissue_type)
+            if sep=='\t':
+                report += f'\tarea_m{tissue_type}\t\tff_m{tissue_type}\t'
+            else:
+                report += f',area_m{tissue_type},ff_mean_m{tissue_type},ff_std_m{tissue_type}'
+        report+='\n'
 
-        if sep=='\t':
-            report='Slice\tMuscle area\t\tFat fraction\n'
-        else:
-            report='slice,muscle_area,ff_mean,ff_std\n'
         areas=[]
         ffs=[]
         for sli in sorted(root.selectedSlices):
             thisffslice=root.ffimg[:,:,sli]
-            thisbinslice=root.binimg[:,:,sli]
+            thismaskslice=root.maskimg[:,:,sli]
 
-            this_area=np.sum(thisbinslice==1)
-            if this_area==0: this_area=np.nan
-            else:
-                 this_area*=slice_resolution
-            areas.append(this_area)
+            report+=f'{sli+1}'
+            for tissue_type in np.unique(root.maskimg):
+                this_area=np.sum(thismaskslice==tissue_type)*slice_resolution
+                areas.append(this_area)
 
-            tmp=thisffslice[thisbinslice==1]
-            this_ff=np.nanmean(tmp[np.isfinite(tmp)])
-            this_ff_std=np.nanstd(tmp[np.isfinite(tmp)])
-            ffs.append(this_ff)
+                tmp=thisffslice[thismaskslice==tissue_type]
+                this_ff=np.nanmean(tmp[np.isfinite(tmp)])
+                this_ff_std=np.nanstd(tmp[np.isfinite(tmp)])
+                ffs.append(this_ff)
 
-            if sep=='\t':
-                report+='%d\t%.1f\t\t%.1f±%.1f\n'%(sli+1,this_area,this_ff,this_ff_std)
-            else:
-                report+='%d,%f,%f,%f\n'%(sli+1,this_area,this_ff,this_ff_std)
+                if sep=='\t':
+                    report+='\t%.1f\t\t%.1f±%.1f\t'%(this_area,this_ff,this_ff_std)
+                else:
+                    report+=',%f,%f,%f'%(this_area,this_ff,this_ff_std)
+            report += '\n'
 
         if True:
             graphs_ax1.clear()
@@ -698,15 +707,9 @@ def sliceSelectorGUI(studyToOpen):
         dixon_575file=root.dixon_575imglink['text']
         maskfile=root.maskimglink['text']
 
-        if False and 'p3-072-thigh' in getStudyLink():
-            temp=root.maskimg.copy()
-            maskfile='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.nii.gz'
-            temp=np.roll(temp,[436-426-1,220-212-2],axis=[0,1])
-            save_nifti(temp,affine=root.fatimgobj.affine,header=root.fatimgobj.header,filename=maskfile)
-
-        if getMaskType(root.maskimg)==MASK_TYPE_PROBABILISTIC:
-            maskfile='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.nii.gz'
-            save_nifti(root.binimg,affine=root.maskimgobj.affine,header=root.maskimgobj.header,filename=maskfile)
+        #if getMaskType(root.maskimg)==MASK_TYPE_PROBABILISTIC:
+        #    maskfile='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.nii.gz'
+        #    save_nifti(root.binimg,affine=root.maskimgobj.affine,header=root.maskimgobj.header,filename=maskfile)
 
         try:
             snap=textBox_SETTING_PATHTOITKSNAP.get()
@@ -797,27 +800,6 @@ def sliceSelectorGUI(studyToOpen):
             return MASK_TYPE_MULTICLASS
         return MASK_TYPE_PROBABILISTIC
 
-    def convertMaskToBinary(maskimg):
-        binimg=maskimg.copy()
-        mask_type=getMaskType(binimg)
-        if mask_type==MASK_TYPE_BINARY: 
-            print('Assuming a binary mark')
-        elif mask_type==MASK_TYPE_PROBABILISTIC:
-            print('Assuming a probabilistic mask')
-            binimg[binimg>root.bin_threshold/100.0]=1
-            binimg[binimg<=root.bin_threshold/100.0]=0
-        elif mask_type==MASK_TYPE_MULTICLASS:
-            print('Assuming a multiclass mask')
-            body_part=str(bodypart_combobox.get()).strip().lower()
-            if len(body_part)==0: 
-                raise Exception('Cannot convert this mask to binary before the right body part is selected from the combination box')
-            maskfilename=root.maskimglink['text']
-            if not convertMRCCentreMaskToBinary(maskfilename,body_part,binimg):
-                raise Exception('Could not convert mask to binary')
-        else:
-            raise Exception('Unknown mask type '+str(mask_type))
-        return binimg
-
     def statistics_controlOnClick(event):
         line_text = statistics_control.get("current linestart","current lineend")
         str_tokens = line_text.split('\t')
@@ -828,12 +810,7 @@ def sliceSelectorGUI(studyToOpen):
             pass
 
     def bin_threshold_sliderOnClick_GO():
-        try:
-            root.binimg=convertMaskToBinary(root.maskimg)
-            showSlice(justmask=True)
-            calcStatistics()
-        except Exception as ex:
-            displayError(str(ex))
+        displayInfo('This slider is no longer in operation')
         setattr(bin_threshold_slider,'updateQueued',0)
 
     def bin_threshold_sliderOnClick(event):
@@ -906,12 +883,10 @@ def sliceSelectorGUI(studyToOpen):
             except Exception as e:
                 displayError('ERROR: '+str(e))
         elif it=='Mask':
-            root.binimg=None
             try:
                 if root.maskimg is not None:
-                    root.binimg=convertMaskToBinary(root.maskimg)
                     root.selectedSlices=list(range(0,root.maskimg.shape[2]))
-                    segmentedSlices=list(np.max(root.binimg,axis=(0,1))>0)
+                    segmentedSlices=list(np.max(root.maskimg,axis=(0,1))>0)
                     if True in segmentedSlices:
                         root.sli=segmentedSlices.index(True)
             except Exception as e:
@@ -1021,8 +996,8 @@ def sliceSelectorGUI(studyToOpen):
     button=tkinter.Button(frame,image=icon_copy,command=statisticsCopyToClipboard)
     button.grid(row=1,column=3,sticky='e',rowspan=2)
 
-    statistics_control=ScrolledText(frame,width=60,height=10)
-    statistics_control.grid(row=0,column=5,rowspan=7)
+    statistics_control_container, statistics_control = TextWithScrollBars(frame)
+    statistics_control_container.grid(row=0,column=5,rowspan=7)
     statistics_control.bind('<Button-1>',statistics_controlOnClick)
 
     label=tkinter.Label(tab_notes,text=' ')
