@@ -13,6 +13,7 @@ import urllib.request
 from tqdm import tqdm
 from sklearn.model_selection import GroupKFold
 
+import pynvml
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as tt
@@ -709,14 +710,14 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
         DIR = TK[1]
         slice = int(TK[2].replace('slice', ''))
 
-        filename = "%s/cnn-%s.nii.gz" % (DIR, ll)
-        filename_std = "%s/std-%s.nii.gz" % (DIR, ll)
-        #if RUNTIME_PARAMS['multiclass']:
-        #    filename=filename.replace('.nii.gz','-multiclass.nii.gz')
-        #    filename_std=filename_std.replace('.nii.gz','-multiclass.nii.gz')
+        tag = 'parcellation' if RUNTIME_PARAMS['multiclass'] else 'segmentation'
+        filename = "%s/%s_%s.nii.gz" % (DIR, ll, tag)
+        filename_std = "%s/%s_%s_var.nii.gz" % (DIR, ll, tag)
+
         if RUNTIME_PARAMS['caution']:
             filename=filename.replace('.nii.gz','-caution.nii.gz')
             filename_std=filename_std.replace('.nii.gz','-caution.nii.gz')
+            
         maskimg = None
         maskimg_std = None
 
@@ -1077,7 +1078,7 @@ def test(test_DIRS):
             RUNTIME_PARAMS['widget']['text'] = 'Calculating mask (%.0f%%)...' % (100*float(fold+1)/5)
             RUNTIME_PARAMS['widget'].update()
 
-        model.load_state_dict(torch.load(weightsfile))
+        model.load_state_dict(torch.load(weightsfile,map_location=device))
 
         test_dataloader = DataLoader(
             MMSegDataset(test_data, test_maskimg),
@@ -1124,19 +1125,23 @@ def main(al, inputdir, widget):
         RUNTIME_PARAMS['widget']['text'] = 'Calculating mask...'
         RUNTIME_PARAMS['widget'].update()
 
-    torch.manual_seed(44)
-    random.seed(44)
-    np.random.seed(44)
-    torch.cuda.manual_seed(44)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
+    RUNTIME_PARAMS['device'] = None
     if torch.cuda.is_available():
-        RUNTIME_PARAMS['device'] = torch.device('cuda:0')
-    else:
+        pynvml.nvmlInit()
+        h = pynvml.nvmlDeviceGetHandleByIndex(0)
+        info = pynvml.nvmlDeviceGetMemoryInfo(h)
+        gb = 1024.0*1024*1024
+        print(f'total    : {info.total/gb}')
+        print(f'free     : {info.free/gb}')
+        print(f'used     : {info.used/gb}')   
+        if info.free/gb<4:
+            print('CUDA is low on memory')
+        else:
+            RUNTIME_PARAMS['device'] = torch.device('cuda:0')
+
+    if RUNTIME_PARAMS['device'] is None:
         RUNTIME_PARAMS['device'] = torch.device('cpu')
         print('CUDA not available, will run on CPU')
-        time.sleep(5)
 
     if RUNTIME_PARAMS['smoketest']:
         print('Smoke test enabled')
@@ -1152,6 +1157,13 @@ def main(al, inputdir, widget):
     start_time = time.time()
 
     if RUNTIME_PARAMS['inputdir'] == 'train' or RUNTIME_PARAMS['inputdir'] == 'validate':
+        torch.manual_seed(44)
+        random.seed(44)
+        np.random.seed(44)
+        torch.cuda.manual_seed(44)
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+
         DIRS = []
         for DATA_DIR in ['brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']:
             for de in glob.glob(os.path.join(DATA_DIR, '*')):

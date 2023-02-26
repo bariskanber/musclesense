@@ -607,13 +607,13 @@ def sliceSelectorGUI(studyToOpen):
 
         sep=',' if args.csv.strip().lower()!='none' else '\t'
 
-        report='slice'
+        report='Z'
         for tissue_type in np.unique(root.maskimg): 
             if tissue_type==int(tissue_type): tissue_type=int(tissue_type)
             if sep=='\t':
-                report += f'\tarea_m{tissue_type}\t\tff_m{tissue_type}\t'
+                report += f'\tR{tissue_type}\t'
             else:
-                report += f',area_m{tissue_type},ff_mean_m{tissue_type},ff_std_m{tissue_type}'
+                report += f',area_roi_{tissue_type},ff_mean_roi_{tissue_type},ff_std_roi_{tissue_type}'
         report+='\n'
 
         areas=[]
@@ -633,7 +633,7 @@ def sliceSelectorGUI(studyToOpen):
                 ffs.append(this_ff)
 
                 if sep=='\t':
-                    report+='\t%.1f\t\t%.1f±%.1f\t'%(this_area,this_ff,this_ff_std)
+                    report+='\t%.1f±%.1f\t'%(this_ff,this_ff_std)
                 else:
                     report+=',%f,%f,%f'%(this_area,this_ff,this_ff_std)
             report += '\n'
@@ -736,8 +736,8 @@ def sliceSelectorGUI(studyToOpen):
         generateMaskButton['text']='Copying files...'
         generateMaskButton.update()
 
+        TEMP_DIR='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.dir'
         try:
-            TEMP_DIR='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.dir'
             os.mkdir(TEMP_DIR)
             nib.save(root.fatimgobj,os.path.join(TEMP_DIR,'fat.nii.gz'))
             nib.save(root.waterimgobj,os.path.join(TEMP_DIR,'water.nii.gz'))
@@ -760,16 +760,9 @@ def sliceSelectorGUI(studyToOpen):
             else:
                 dirToSaveTo=os.path.dirname(dirToSaveTo)
     
-            saveNum=0
-            while True:
-                saveNum+=1
-                fname=os.path.join(dirToSaveTo,'cnn-'+body_part+'-take-'+str(saveNum)+'.nii.gz')
-                if not os.path.exists(fname):
-                    break
+            expectedFile = os.path.join(TEMP_DIR,body_part+'_parcellation.nii.gz')
+            target_file=os.path.join(dirToSaveTo,os.path.basename(expectedFile))
 
-            target_file=os.path.join(dirToSaveTo,'cnn-'+body_part+'-take-'+str(saveNum)+'.nii.gz')
-            
-            expectedFile = os.path.join(TEMP_DIR,'cnn-'+body_part+'.nii.gz')
             if os.path.exists(expectedFile.replace('.nii.gz','-caution.nii.gz')):
                 expectedFile = expectedFile.replace('.nii.gz','-caution.nii.gz')
                 target_file = target_file.replace('.nii.gz','-caution.nii.gz')
@@ -778,13 +771,10 @@ def sliceSelectorGUI(studyToOpen):
             shutil.move(expectedFile,target_file)
 
             displayInfo('The generated mask has been saved as '+target_file)
-
-            shutil.move(os.path.join(TEMP_DIR,'std-'+body_part+'.nii.gz'),
-                os.path.join(dirToSaveTo,'std-'+body_part+'-take-'+str(saveNum)+'.nii.gz'))
-
-            os.rmdir(TEMP_DIR)
         except Exception as e:
             displayError('Could not generate the muscle mask\n\n'+'ERROR: '+str(e))
+        finally:
+            if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
 
         generateMaskButton['text']=prev_text
         generateMaskButton['bg']=prev_bg
@@ -989,7 +979,7 @@ def sliceSelectorGUI(studyToOpen):
         setattr(root,imagetypes[it]+'link',link)
         row+=1
 
-    label=tkinter.Label(frame,text='   Biomarkers:')
+    label=tkinter.Label(frame,text='   Fat fraction:')
     label.grid(row=0,column=3,sticky='e')
     label=tkinter.Label(frame,text=' ')
     label.grid(row=0,column=4,sticky='e')
