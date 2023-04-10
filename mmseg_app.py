@@ -22,7 +22,6 @@ from tkinter import Menu
 from tkinter.scrolledtext import ScrolledText
 import tkinter.messagebox
 import tkinter.font as tkFont
-from tkinter.font import Font
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -235,8 +234,7 @@ def sliceSelectorGUI(studyToOpen):
             ax3.imshow(prepForDisplay(overlayBaseImage,root.sli),cmap='gray',**add_params)
  
         if root.maskimg is not None and root.showMask:
-            cmap='tab20b' if root.sli in root.selectedSlices else 'tab20c'
-            transp_imshow(ax3,prepForDisplay(root.maskimg,root.sli),cmap=cmap,alpha=0.6,tvmin=0,tvmax=1)
+            transp_imshow(ax3,prepForDisplay(root.maskimg,root.sli),cmap='tab20b',alpha=0.6,tvmin=0,tvmax=1)
 
         ax3.set_title(root.overlayMaskOn+' & Muscle mask'+text)
 
@@ -591,23 +589,30 @@ def sliceSelectorGUI(studyToOpen):
             return
 
         if root.selectedSlices is None or len(root.selectedSlices)<1:
-            report='No slices are selected'
             statistics_control.delete(1.0,tkinter.END)
-            statistics_control.insert(tkinter.INSERT,report)
+            statistics_control.insert(tkinter.INSERT,'No slices are selected')
             return
             
         if not np.array_equal(root.fatimgobj.header.get_zooms(),root.maskimgobj.header.get_zooms()):
-            report='Fat and mask image resolutions are different'
             statistics_control.delete(1.0,tkinter.END)
-            statistics_control.insert(tkinter.INSERT,report)
+            statistics_control.insert(tkinter.INSERT,'Fat and mask image resolutions are different')
             return
+
+        if len(root.fatimgobj.header.get_zooms())!=3:
+            statistics_control.delete(1.0,tkinter.END)
+            statistics_control.insert(tkinter.INSERT,'Fat image volume is not three dimensional')
+            return
+
+        report=''
+        sep=',' if args.csv.strip().lower()!='none' else '\t'
 
         slice_resolution=root.fatimgobj.header.get_zooms()[:2]
         slice_resolution=np.prod(slice_resolution)
-
-        sep=',' if args.csv.strip().lower()!='none' else '\t'
-
-        report='Z'
+        report += f'Zooms: {root.fatimgobj.header.get_zooms()} unit(s)\n\n'
+        report += f'Slice resolution: {slice_resolution} sq unit(s)\n\n'
+        statistics_control.update()
+        
+        report+='Z'
         for tissue_type in np.unique(root.maskimg): 
             if tissue_type==int(tissue_type): tissue_type=int(tissue_type)
             if sep=='\t':
@@ -696,6 +701,11 @@ def sliceSelectorGUI(studyToOpen):
         displayInfo("Statistics copied to clipboard")
 
     def editMask():
+        snap=textBox_SETTING_PATHTOITKSNAP.get()
+        if not os.path.isfile(snap):
+            displayInfo(f'ITK-snap binary {snap} does not exist or is not a file, check your settings')
+            return
+        
         if root.fatimg is None or root.waterimg is None or root.dixon_345img is None or root.dixon_460img is None or root.dixon_575img is None or root.maskimg is None:
             displayInfo('Fat, water, Dixon 3.45ms, Dixon 4.60ms, Dixon 5.75ms, and mask images are required')
             return
@@ -711,11 +721,21 @@ def sliceSelectorGUI(studyToOpen):
         #    maskfile='tmp.'+APP_INSTANCE_ID+'.'+''.join(random.choice(string.ascii_letters) for i in range(10))+'.nii.gz'
         #    save_nifti(root.binimg,affine=root.maskimgobj.affine,header=root.maskimgobj.header,filename=maskfile)
 
+        prev_text=editMaskButton['text']
+        prev_bg=editMaskButton['bg']
+        editMaskButton['bg']='red'
+        editMaskButton['text']='Launching itksnap'
+        editMaskButton.update()
         try:
-            snap=textBox_SETTING_PATHTOITKSNAP.get()
-            Popen([snap,'-g',fatfile,'-s',maskfile,'-o',waterfile,dixon_345file,dixon_460file,dixon_575file])
+            time.sleep(1)
+            result=Popen([snap,'-g',fatfile,'-s',maskfile,'-o',waterfile,dixon_345file,dixon_460file,dixon_575file])
+            print(result.pid)
         except Exception as e:
             displayError('ERROR: '+str(e))
+
+        editMaskButton['bg']=prev_bg
+        editMaskButton['text']=prev_text
+        editMaskButton.update()
 
     def generateMask():
         if root.fatimg is None or root.waterimg is None or root.dixon_345img is None or root.dixon_460img is None or root.dixon_575img is None:
@@ -948,8 +968,8 @@ def sliceSelectorGUI(studyToOpen):
 
     generateMaskButton = tkinter.Button(master=tab_home, text="Generate mask", command=generateMask)
     generateMaskButton.pack(in_=frame2,side=tkinter.LEFT)
-    button = tkinter.Button(master=tab_home, text="Edit mask", command=editMask)
-    button.pack(in_=frame2,side=tkinter.LEFT)
+    editMaskButton = tkinter.Button(master=tab_home, text="Edit mask", command=editMask)
+    editMaskButton.pack(in_=frame2,side=tkinter.LEFT)
     showHideMaskButton = tkinter.Button(master=tab_home, text="Hide mask", command=showHideMask)
     showHideMaskButton.pack(in_=frame2,side=tkinter.LEFT)
 
@@ -1006,11 +1026,11 @@ def sliceSelectorGUI(studyToOpen):
 
     label=tkinter.Label(tab_settings,text=' ')
     label.grid(row=0,column=0,sticky='e')
-    label=tkinter.Label(tab_settings,text='Path to ITK-SNAP: ')
+    label=tkinter.Label(tab_settings,text='ITK-snap binary: ')
     label.grid(row=1,column=1,sticky='w')
     textBox_SETTING_PATHTOITKSNAP=tkinter.Entry(tab_settings,width=80)
     textBox_SETTING_PATHTOITKSNAP.grid(row=1,column=2,sticky='w')
-    textBox_SETTING_PATHTOITKSNAP.insert(0,'itksnap') # /home/bkanber/itksnap-3.6.0-20170401-Linux-x86_64/bin/itksnap
+    textBox_SETTING_PATHTOITKSNAP.insert(0,'/usr/bin/itksnap')
 
     bin_threshold_label=tkinter.Label(tab_settings,text='Binarisation threshold (%d%%): '%(root.bin_threshold))
     bin_threshold_label.grid(row=2,column=1,sticky='w')
@@ -1112,7 +1132,7 @@ def sliceSelectorGUI(studyToOpen):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("mmseg_app")
-    parser.add_argument('--version', action='version', version='1.0.0')
+    parser.add_argument('--version', action='version', version='1.1.0')
     parser.add_argument('-study', type=str, help='Study to open (default: new)', default='new')
     parser.add_argument('-csv', type=str, help='CSV file to export stats to (default: none)', default='none')
     args=parser.parse_args()
