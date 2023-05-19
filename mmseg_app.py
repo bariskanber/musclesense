@@ -26,13 +26,11 @@ import tkinter.font as tkFont
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 
-from nifti_tools import save_nifti
 from transp_imshow import transp_imshow
-from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
-
+from mmseg_constants import *
+from mmseg_labels import *
 import mmseg_ll
 
 APP_TITLE='Musclesense workbench'
@@ -47,23 +45,6 @@ if not os.path.exists(SETTINGS_DIR):
 
 SETTINGS_FILE=os.path.join(SETTINGS_DIR,'musclesensewb.cfg')
 print('SETTINGS_FILE',SETTINGS_FILE)
-
-IMAGE_TYPE_FAT='Fat'
-IMAGE_TYPE_WATER='Water'
-IMAGE_TYPE_FATFRACTION='Fat fraction'
-IMAGE_TYPE_DIXON345='Dixon 3.45ms'
-IMAGE_TYPE_DIXON460='Dixon 4.60ms'
-IMAGE_TYPE_DIXON575='Dixon 5.75ms'
-IMAGE_TYPE_MASK='Mask'
-
-imagetypes={
-    IMAGE_TYPE_FAT:'fatimg',
-    IMAGE_TYPE_WATER:'waterimg',
-    IMAGE_TYPE_DIXON345:'dixon_345img',
-    IMAGE_TYPE_DIXON460:'dixon_460img',
-    IMAGE_TYPE_DIXON575:'dixon_575img',
-    IMAGE_TYPE_MASK:'maskimg',
-}
 
 def TextWithScrollBars(frame, width=80, height=10, wrap="none"):
     textContainer = Frame(frame, borderwidth=1, relief="sunken")
@@ -152,6 +133,7 @@ def sliceSelectorGUI(studyToOpen):
     root.selectedSlices=[]
     root.showMask=True
     root.overlayMaskOn=IMAGE_TYPE_FATFRACTION
+    root.displayStatistic=DISPLAYSTATISTIC_FAT_FRACTION
     root.bin_threshold=50
     root.recentStudies=[]
 
@@ -164,6 +146,11 @@ def sliceSelectorGUI(studyToOpen):
         if root.overlayMaskOn==image_type: return
         root.overlayMaskOn=image_type
         showSlice()
+
+    def setDisplayStatistic(displayStatistic):
+        if root.displayStatistic==displayStatistic: return
+        root.displayStatistic=displayStatistic
+        calcStatistics()
 
     def prepForDisplay(img,slice,empty_shape=(51,24)):
         if img is None: return np.zeros(empty_shape,dtype=np.uint8).transpose()
@@ -305,6 +292,7 @@ def sliceSelectorGUI(studyToOpen):
             settings_data['SETTING_PATHTOITKSNAP']=textBox_SETTING_PATHTOITKSNAP.get()
             settings_data['recentStudies']=root.recentStudies
             settings_data['overlayMaskOn']=root.overlayMaskOn
+            settings_data['displayStatistic']=root.displayStatistic
 
             with open(SETTINGS_FILE,'wb') as f:
                 pickle.dump(settings_data,f)
@@ -331,6 +319,9 @@ def sliceSelectorGUI(studyToOpen):
 
             if 'overlayMaskOn' in settings_data:
                 root.overlayMaskOn = settings_data['overlayMaskOn']
+
+            if 'displayStatistic' in settings_data:
+                root.displayStatistic = settings_data['displayStatistic']
         except Exception as e:
             displayError('ERROR: '+str(e))
 
@@ -584,6 +575,8 @@ def sliceSelectorGUI(studyToOpen):
             calcStatistics()
 
     def calcStatistics():
+        statistics_label['text'] = f'   {root.displayStatistic}:'
+        
         if root.ffimg is None or root.maskimg is None:
             statistics_control.delete(1.0,tkinter.END)
             return
@@ -602,45 +595,55 @@ def sliceSelectorGUI(studyToOpen):
             statistics_control.delete(1.0,tkinter.END)
             statistics_control.insert(tkinter.INSERT,'Fat image volume is not three dimensional')
             return
+        
+        body_part=str(bodypart_combobox.get()).lower()
+        if body_part=='calf': labels = labels_STANDARD['calf']
+        elif body_part=='thigh': labels = labels_STANDARD['thigh']
+        else:
+            statistics_control.delete(1.0,tkinter.END)
+            statistics_control.insert(tkinter.INSERT,'Please select the body part from the combination box')
+            return
+        
+        unique_mask_values = np.unique(root.maskimg)
+        if not np.array_equal(unique_mask_values,unique_mask_values.astype(np.uint16)):
+            statistics_control.delete(1.0,tkinter.END)
+            statistics_control.insert(tkinter.INSERT,'Mask values are not integer')
+            return
+            
+        if len(labels.keys())!=len(unique_mask_values):
+            statistics_control.delete(1.0,tkinter.END)
+            statistics_control.insert(tkinter.INSERT,f'Labels have {len(labels.keys())} classes but mask has {len(unique_mask_values)}')
+            return
 
-        report=''
         sep=',' if args.csv.strip().lower()!='none' else '\t'
 
-        slice_resolution=root.fatimgobj.header.get_zooms()[:2]
-        slice_resolution=np.prod(slice_resolution)
-        report += f'Zooms: {root.fatimgobj.header.get_zooms()} unit(s)\n\n'
-        report += f'Slice resolution: {slice_resolution} sq unit(s)\n\n'
-        statistics_control.update()
-        
-        report+='Z'
-        for tissue_type in np.unique(root.maskimg): 
+        report='slice'
+        for tissue_type in unique_mask_values: 
+            if tissue_type==0: continue
             if tissue_type==int(tissue_type): tissue_type=int(tissue_type)
             if sep=='\t':
-                report += f'\tR{tissue_type}\t'
+                report += f'\t{labels[tissue_type]["abbreviation"]}'
             else:
-                report += f',area_roi_{tissue_type},ff_mean_roi_{tissue_type},ff_std_roi_{tissue_type}'
+                report += f',{labels[tissue_type]["name"]}_area,{labels[tissue_type]["name"]}_ff'
         report+='\n'
 
-        areas=[]
-        ffs=[]
+        slice_resolution=np.prod(root.fatimgobj.header.get_zooms()[:2])
         for sli in sorted(root.selectedSlices):
             thisffslice=root.ffimg[:,:,sli]
             thismaskslice=root.maskimg[:,:,sli]
 
             report+=f'{sli+1}'
-            for tissue_type in np.unique(root.maskimg):
+            for tissue_type in unique_mask_values:
+                if tissue_type==0: continue
                 this_area=np.sum(thismaskslice==tissue_type)*slice_resolution
-                areas.append(this_area)
 
                 tmp=thisffslice[thismaskslice==tissue_type]
                 this_ff=np.nanmean(tmp[np.isfinite(tmp)])
-                this_ff_std=np.nanstd(tmp[np.isfinite(tmp)])
-                ffs.append(this_ff)
 
                 if sep=='\t':
-                    report+='\t%.1f±%.1f\t'%(this_ff,this_ff_std)
+                    report+='\t%.1f'%(this_area if root.displayStatistic==DISPLAYSTATISTIC_MUSCLE_AREA else this_ff)
                 else:
-                    report+=',%f,%f,%f'%(this_area,this_ff,this_ff_std)
+                    report+=',%f,%f'%(this_area,this_ff)
             report += '\n'
 
         if True:
@@ -683,9 +686,6 @@ def sliceSelectorGUI(studyToOpen):
 
             long_statistics_control.delete(1.0,tkinter.END)
             long_statistics_control.insert(tkinter.INSERT,long_report)
-
-        #if sep=='\t':
-        #    report+='AVG\t%.1f±%.1f\t\t%.1f±%.1f\n'%(np.nanmean(areas),np.nanstd(areas),np.nanmean(ffs),np.nanstd(ffs))
 
         statistics_control.delete(1.0,tkinter.END)
         statistics_control.insert(tkinter.INSERT,report)
@@ -999,8 +999,8 @@ def sliceSelectorGUI(studyToOpen):
         setattr(root,imagetypes[it]+'link',link)
         row+=1
 
-    label=tkinter.Label(frame,text='   Fat fraction:')
-    label.grid(row=0,column=3,sticky='e')
+    statistics_label=tkinter.Label(frame,text=f'   Statistics:')
+    statistics_label.grid(row=0,column=3,sticky='e')
     label=tkinter.Label(frame,text=' ')
     label.grid(row=0,column=4,sticky='e')
     button=tkinter.Button(frame,image=icon_copy,command=statisticsCopyToClipboard)
@@ -1094,9 +1094,14 @@ def sliceSelectorGUI(studyToOpen):
     overlayMaskOnMenu.add_command(label="Dixon 4.60ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON460))
     overlayMaskOnMenu.add_command(label="Dixon 5.75ms image", command=lambda:overlayMaskOn(IMAGE_TYPE_DIXON575))
 
+    displayStatisticMenu = Menu(menubar, tearoff=0)
+    displayStatisticMenu.add_command(label="Fat fraction", command=lambda:setDisplayStatistic(DISPLAYSTATISTIC_FAT_FRACTION))
+    displayStatisticMenu.add_command(label="Muscle area", command=lambda:setDisplayStatistic(DISPLAYSTATISTIC_MUSCLE_AREA))
+
     viewmenu = Menu(menubar, tearoff=0)
     viewmenu.add_command(label="New workbench", command=newWorkbench)
     viewmenu.add_cascade(label="Overlay mask on...", menu=overlayMaskOnMenu)
+    viewmenu.add_cascade(label="Display statistic...", menu=displayStatisticMenu)
     menubar.add_cascade(label="View", menu=viewmenu)
 
     #toolsmenu = Menu(menubar, tearoff=0)
