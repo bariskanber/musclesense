@@ -1,0 +1,19 @@
+IMAGE_TYPE_FAT = 'Fat'
+IMAGE_TYPE_WATER = 'Water'
+IMAGE_TYPE_FATFRACTION = 'Fat fraction'
+IMAGE_TYPE_DIXON345 = 'Dixon 3.45ms'
+IMAGE_TYPE_DIXON460 = 'Dixon 4.60ms'
+IMAGE_TYPE_DIXON575 = 'Dixon 5.75ms'
+IMAGE_TYPE_MASK = 'Mask'
+
+imagetypes = {
+    IMAGE_TYPE_FAT: 'fatimg',
+    IMAGE_TYPE_WATER: 'waterimg',
+    IMAGE_TYPE_DIXON345: 'dixon_345img',
+    IMAGE_TYPE_DIXON460: 'dixon_460img',
+    IMAGE_TYPE_DIXON575: 'dixon_575img',
+    IMAGE_TYPE_MASK: 'maskimg'
+}
+
+DISPLAYSTATISTIC_FAT_FRACTION = 'Fat fraction'
+DISPLAYSTATISTIC_MUSCLE_AREA = 'Muscle area'
