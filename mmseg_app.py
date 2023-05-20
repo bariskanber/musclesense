@@ -16,7 +16,6 @@ import platform
 
 import tkinter
 from tkinter import *
-from tkinter import font
 from tkinter import filedialog, ttk, PhotoImage
 from tkinter import Menu
 from tkinter.scrolledtext import ScrolledText
@@ -29,9 +28,10 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationTool
 from matplotlib.figure import Figure
 
 from transp_imshow import transp_imshow
+
 from mmseg_constants import *
 from mmseg_labels import *
-import mmseg_ll
+from mmseg_utils import checkDixonImage
 
 APP_TITLE='Musclesense workbench'
 
@@ -596,6 +596,11 @@ def sliceSelectorGUI(studyToOpen):
             statistics_control.insert(tkinter.INSERT,'Fat image volume is not three dimensional')
             return
         
+        if not np.array_equal(root.maskimg,root.maskimg.astype(np.uint16)):
+            statistics_control.delete(1.0,tkinter.END)
+            statistics_control.insert(tkinter.INSERT,f'Mask values are not uint16, MIN={np.min(root.maskimg)}, MAX={np.max(root.maskimg)}')
+            return
+
         body_part=str(bodypart_combobox.get()).lower()
         if body_part=='calf': labels = labels_STANDARD['calf']
         elif body_part=='thigh': labels = labels_STANDARD['thigh']
@@ -605,11 +610,6 @@ def sliceSelectorGUI(studyToOpen):
             return
         
         unique_mask_values = np.unique(root.maskimg)
-        if not np.array_equal(unique_mask_values,unique_mask_values.astype(np.uint16)):
-            statistics_control.delete(1.0,tkinter.END)
-            statistics_control.insert(tkinter.INSERT,'Mask values are not integer')
-            return
-            
         if len(labels.keys())!=len(unique_mask_values):
             statistics_control.delete(1.0,tkinter.END)
             statistics_control.insert(tkinter.INSERT,f'Labels have {len(labels.keys())} classes but mask has {len(unique_mask_values)}')
@@ -765,6 +765,7 @@ def sliceSelectorGUI(studyToOpen):
             nib.save(root.dixon_460imgobj,os.path.join(TEMP_DIR,'dixon460.nii.gz'))
             nib.save(root.dixon_575imgobj,os.path.join(TEMP_DIR,'dixon575.nii.gz'))
 
+            import mmseg_ll
             mmseg_ll.main(body_part,TEMP_DIR,generateMaskButton)
 
             generateMaskButton['text']='Completing...'
@@ -903,7 +904,7 @@ def sliceSelectorGUI(studyToOpen):
                 displayError('ERROR: '+str(e))
         elif 'dixon' in it.lower():
             if getattr(root,imagetypes[it]) is not None:
-                if not mmseg_ll.checkDixonImage(getattr(root,imagetypes[it])):
+                if not checkDixonImage(getattr(root,imagetypes[it])):
                     displayInfo("WARNING: The loaded image did not pass verification checks and may be a phase image")
             
         if callShowSlice: 
@@ -1101,7 +1102,7 @@ def sliceSelectorGUI(studyToOpen):
     viewmenu = Menu(menubar, tearoff=0)
     viewmenu.add_command(label="New workbench", command=newWorkbench)
     viewmenu.add_cascade(label="Overlay mask on...", menu=overlayMaskOnMenu)
-    viewmenu.add_cascade(label="Display statistic...", menu=displayStatisticMenu)
+    viewmenu.add_cascade(label="Display statistic", menu=displayStatisticMenu)
     menubar.add_cascade(label="View", menu=viewmenu)
 
     #toolsmenu = Menu(menubar, tearoff=0)

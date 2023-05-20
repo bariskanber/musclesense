@@ -22,7 +22,7 @@ import segmentation_models_pytorch as smp
 
 from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
 from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
-from utils import numpy_dice_coefficient, scale2D
+from mmseg_utils import numpy_dice_coefficient, scale2D, checkDixonImage
 from nifti_tools import save_nifti
 
 import matplotlib as mpl
@@ -140,14 +140,6 @@ def valid_mask(mask_original, help_str):
         return MASK_VALIDITY_SINGLESIDED
 
     return MASK_VALIDITY_VALID
-
-
-def checkDixonImage(dixon_img):
-    hist, _ = np.histogram(dixon_img, bins=20)
-    if np.argmax(hist) == 0:
-        return True
-    return False
-
 
 def load_BFC_image(filename, test):
     if True:

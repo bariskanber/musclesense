@@ -29,3 +29,8 @@ def scale3D(inmat,targetsize_z,targetsize_y,targetsize_x,order=3,mode='constant'
 
     return retmat
 
+def checkDixonImage(dixon_img) -> bool:
+    hist, _ = np.histogram(dixon_img, bins=20)
+    if np.argmax(hist) == 0: return True
+    else:
+        return False
