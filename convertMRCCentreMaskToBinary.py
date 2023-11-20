@@ -7,7 +7,7 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
 
         expected_vals=[0,1,2,3,4,5,6,7,9,10,11,12,13,14,15] # Left/right tibial nerve not labelled
         actual_vals=np.unique(maskimg)
-        if DIR not in ['brcalskd/BRCALSKD_013A','brcalskd/BRCALSKD_019A','brcalskd/BRCALSKD_023C','brcalskd/BRCALSKD_054A'] and not np.array_equal(actual_vals,expected_vals):
+        if DIR.replace('data/','') not in ['brcalskd/BRCALSKD_013A','brcalskd/BRCALSKD_019A','brcalskd/BRCALSKD_023C','brcalskd/BRCALSKD_054A'] and not np.array_equal(actual_vals,expected_vals):
             raise Exception('Expected unique mask values were %s but are %s'%(expected_vals,actual_vals))
 
         maskimg[np.where(maskimg==7)]=0 # Right Tibia Marrow
@@ -51,7 +51,7 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
              'ibmcmt_p6' in DIR):
         assert(np.min(maskimg)==0)
 
-        if DIR in ('hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018',
+        if DIR.replace('data/','') in ('hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018',
             'ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b'):
                 maskimg[maskimg>18]=0 # These cases have suporous values>18 but masks otherwise look ok
 

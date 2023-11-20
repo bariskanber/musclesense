@@ -46,7 +46,7 @@ print('MODULE_NAME', MODULE_NAME)
 
      
 def get_subject_id_from_DIR(DIR):
-    DIR = DIR.split('^')  # e.g. thigh^brcalskd/BRCALSKD_056C
+    DIR = DIR.split('^')  # e.g. thigh^data/brcalskd/BRCALSKD_056C
     assert (len(DIR) >= 2)
     DIR = DIR[1]
 
@@ -149,22 +149,22 @@ def load_BFC_image(filename, test):
         return nibobj, nibobj.get_fdata()
 
 def get_fmf(pattern):
-        """Get first file matching given pattern or raise an exception
+    """Get first file matching given pattern or raise an exception
 
-        Args:
-            pattern (str): File pattern to match
+    Args:
+        pattern (str): File pattern to match
 
-        Returns:
-            filename: The first matching filename
-            
-        Example:
-            get_fmf('/home/myfile.*')
-        """
-        files = glob.glob(pattern)
-        if len(files) < 1:
-            print(f'ERROR: No files found matching {pattern}')
-            assert (False)
-        return files[0]
+    Returns:
+        filename: The first matching filename
+        
+    Example:
+        get_fmf('/home/myfile.*')
+    """
+    files = glob.glob(pattern)
+    if len(files) < 1:
+        print(f'ERROR: No files found matching {pattern}')
+        assert (False)
+    return files[0]
 
 def load_case_base(inputdir, DIR, multiclass, test):
     CAUTION=False
@@ -224,6 +224,52 @@ def load_case_base(inputdir, DIR, multiclass, test):
             dixfile = dixfile[::-1]
             
         filename = dixfile[0]
+        
+        # register t1_t2_stir to dixon
+        if filename.startswith('data/ibmcmt_p1/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p1/','')
+        elif filename.startswith('data/ibmcmt_p2/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p2/','')
+        elif filename.startswith('data/ibmcmt_p3/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p3/','')
+        elif filename.startswith('data/ibmcmt_p4/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p4/','')
+        elif filename.startswith('data/ibmcmt_p5/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p5/','')
+        elif filename.startswith('data/ibmcmt_p6/'):
+            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p6/','')
+        elif filename.startswith('data/brcalskd/'):
+            t1t2stir = 'data/brcalskd_t1_t2_stir/' + filename.replace('data/brcalskd/','')
+        elif filename.startswith('data/hypopp/'):
+            t1t2stir = 'data/hypopp_t1_t2_stir/' + filename.replace('data/hypopp/','')
+        else:
+            raise Exception('Unexpected condition')
+        
+        t1t2stir = os.path.dirname(t1t2stir)
+        if not os.path.isdir(t1t2stir):
+            raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
+        
+        for keyword in ['stir','STIR']:
+            dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,ll))
+            if len(dirlist)==0:
+                dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll]))
+            else:
+                break
+        
+        if len(dirlist)==0:
+            if t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
+                            'data/brcalskd_t1_t2_stir/BRCALSKD_002A/nii',
+                            'data/ibmcmt_t1_t2_stir/p1-011b/nii'
+                            ]:
+                pass
+            else:
+                raise Exception('No STIR found in '+t1t2stir)
+            
+        if len(dirlist)>1:
+            raise Exception('>1 STIR found in '+t1t2stir)
+        
+        if len(dirlist)==1:
+            print('register')
 
     dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
     assert checkDixonImage(dixon_345img), filename+' may be a phase image'
@@ -260,7 +306,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
        CAUTION=True
        if DEBUG: print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
 
-    if 0 and filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
+    if 0 and filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
         pass
     else:
         assert checkDixonImage(dixon_460img), filename+' may be a phase image'
@@ -297,7 +343,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
         CAUTION=True
         if DEBUG: print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
 
-    if filename == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
+    if filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
         pass
     else:
         assert checkDixonImage(dixon_575img), filename+' may be a phase image'
@@ -324,11 +370,11 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if not os.path.exists(filename):
             filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_af_3.nii.gz')
     elif 'ibmcmt_p' in DIR:
-        if ll == 'calf' and DIR == 'ibmcmt_p5/p5-027':
+        if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p5/p5-027':
             filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_at_3.nii.gz')
-        elif ll == 'thigh' and DIR == 'ibmcmt_p2/p2-008':
+        elif ll == 'thigh' and DIR.replace('data/','') == 'ibmcmt_p2/p2-008':
             filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_ta_3.nii.gz')
-        elif ll == 'calf' and DIR == 'ibmcmt_p5/p5-044':
+        elif ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p5/p5-044':
             filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_at_3.nii.gz')
         else:
             filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_bk.nii.gz')
@@ -356,26 +402,26 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if not np.array_equal(fatimgobj.header.get_zooms(), maskimgobj.header.get_zooms()):
             raise Exception('Fat and mask image resolutions are different for '+DIR)
 
-    if ll == 'calf' and DIR == 'ibmcmt_p2/p2-042':
+    if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p2/p2-042':
         maskimg[:, :, 3] = 0
-    if ll == 'calf' and DIR == 'ibmcmt_p3/p3-001':
+    if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p3/p3-001':
         maskimg[:, :, 2] = 0
-    if ll == 'calf' and DIR == 'brcalskd/BRCALSKD_011A':
+    if ll == 'calf' and DIR.replace('data/','') == 'brcalskd/BRCALSKD_011A':
         maskimg[:, :, 5] = 0
-    if ll == 'calf' and DIR == 'ibmcmt_p5/p5-061':
+    if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p5/p5-061':
         maskimg[:, :, 4] = 0
-    if ll == 'calf' and DIR == 'ibmcmt_p5/p5-068':
+    if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p5/p5-068':
         maskimg[:, :, 5] = 0
-    if ll == 'calf' and DIR == 'brcalskd/BRCALSKD_002C':
+    if ll == 'calf' and DIR.replace('data/','') == 'brcalskd/BRCALSKD_002C':
         maskimg[:, :, 6] = 0
 
     if not multiclass:
         if filename is not None and not convertMRCCentreMaskToBinary(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToBinary returned False')
 
-        if ll == 'calf' and DIR in ['brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_039C', 'hypopp/014_b', 'hypopp/006_a', 'ibmcmt_p5/p5-034', 'ibmcmt_p3/p3-008', 'ibmcmt_p6/p6-008']:
+        if ll == 'calf' and DIR.replace('data/','') in ['brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_039C', 'hypopp/014_b', 'hypopp/006_a', 'ibmcmt_p5/p5-034', 'ibmcmt_p3/p3-008', 'ibmcmt_p6/p6-008']:
             pass
-        elif ll == 'thigh' and DIR in ['ibmcmt_p6/p6-008', 'hypopp/023_a', 'ibmcmt_p4/p4-027', 'ibmcmt_p4/p4-033', 'ibmcmt_p4/p4-062', 'ibmcmt_p4/p4-004', 'ibmcmt_p4/p4-046', 'brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_036C', 'ibmcmt_p2/p2-072', 'ibmcmt_p1/p1-014b', 'ibmcmt_p3/p3-067', 'ibmcmt_p3/p3-051', 'ibmcmt_p3/p3-011', 'ibmcmt_p2/p2-010', 'ibmcmt_p2/p2-041', 'ibmcmt_p4/p4-060']:
+        elif ll == 'thigh' and DIR.replace('data/','') in ['ibmcmt_p6/p6-008', 'hypopp/023_a', 'ibmcmt_p4/p4-027', 'ibmcmt_p4/p4-033', 'ibmcmt_p4/p4-062', 'ibmcmt_p4/p4-004', 'ibmcmt_p4/p4-046', 'brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_036C', 'ibmcmt_p2/p2-072', 'ibmcmt_p1/p1-014b', 'ibmcmt_p3/p3-067', 'ibmcmt_p3/p3-051', 'ibmcmt_p3/p3-011', 'ibmcmt_p2/p2-010', 'ibmcmt_p2/p2-041', 'ibmcmt_p4/p4-060']:
             pass
         elif (inputdir == 'train' or inputdir == 'validate'):
             QQ = maskimg > 0
@@ -408,7 +454,7 @@ def load_case(inputdir, DIR, multiclass, test=False):
 
     t = type(maskimg[0, 0, 0])
     if t is not np.uint8 and t is not np.uint16:
-        if DIR in ['calf^ibmcmt_p5/p5-034']:
+        if DIR.replace('data/','') in ['calf^ibmcmt_p5/p5-034']:
             pass
         else:
             raise Exception('dtype not uint8/16 for mask '+DIR+' it is, '+str(t))
@@ -425,7 +471,7 @@ def load_data(DIRS, test=False):
         raise Exception('No data to load')
 
     print('Reading %d item(s)...' % len(DIRS))
-    n_jobs = max(1, multiprocessing.cpu_count()//2)
+    n_jobs = 1#max(1, multiprocessing.cpu_count()//2)
 
     ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, RUNTIME_PARAMS['multiclass'], test) for DIR in DIRS)
 
@@ -573,7 +619,7 @@ def read_and_normalize_data(DIRS, test=False):
     data = np.concatenate((fatimg, dixon_345img, dixon_575img), axis=3)
 
     print('Data shape:', data.shape)
-    print('Lesion mask shape:', maskimg.shape)
+    print('Mask shape:', maskimg.shape)
 
     print('Mean data before normalisation: '+str(np.mean(data)))
     print('Std data before normalisation: '+str(np.std(data)))
@@ -605,16 +651,20 @@ def read_and_normalize_data(DIRS, test=False):
 def MYNET():
     if RUNTIME_PARAMS['multiclass']:
         activation = 'softmax'
+        encoder_name='inceptionv4' # inceptionv4 - 41M
+        encoder_weights='imagenet+background' # imagenet
+        
     else:
         activation = 'sigmoid'
+        encoder_name='resnext50_32x4d' # resnext50_32x4d
+        encoder_weights='imagenet' # imagenet
 
     return smp.Unet(
-        encoder_name='resnext50_32x4d',  # 'resnext50_32x4d, resnet34' (~20M params)
-        encoder_weights='imagenet',
+        encoder_name=encoder_name,
+        encoder_weights=encoder_weights,
         encoder_depth=5-1,
         decoder_channels=(128, 64, 32, 16),
         decoder_use_batchnorm=True,
-#        decoder_attention_type='scse',
         in_channels=3,
         classes=RUNTIME_PARAMS['classes'],
         activation=activation
@@ -789,7 +839,7 @@ def saveTrainingMetrics(history, label, filename):
     plt.close(fig)
 
 
-def AugmentData(batch_images, mask_images):
+def augmentData(batch_images, mask_images):
     for batchi in range(batch_images.shape[0]):
         TAG_augment_crop_and_resize = True
         if TAG_augment_crop_and_resize and np.random.randint(0, 2) == 0:
@@ -912,7 +962,7 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             accs_this_epoch = []
             with torch.set_grad_enabled(True):
                 for data in tqdm(train_dataloader, leave=False, desc='Training'):
-                    image, mask = AugmentData(data['image'], data['mask'])
+                    image, mask = augmentData(data['image'], data['mask'])
                     image = image.to(device)
                     mask = mask.to(device)
                     optimiser.zero_grad()
@@ -973,7 +1023,7 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
 
         model.load_state_dict(best_epoch_state_dict)
         if RUNTIME_PARAMS['inputdir'] == 'train':
-            modelfilename = 'full.%d.%s.%s.model' % (
+            modelfilename = 'models/full.%d.%s.%s.model' % (
                 fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
             torch.save(best_epoch_state_dict, modelfilename)
             trainingMetricsFilename = 'full.%d.%s.%s.%s.pdf' % (
@@ -982,7 +1032,7 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.pdf' % (
                 RUNTIME_PARAMS['outerfold'], fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
 
-        saveTrainingMetrics(history, trainingMetricsFilename, trainingMetricsFilename)
+        saveTrainingMetrics(history, trainingMetricsFilename, os.path.join('metrics',trainingMetricsFilename))
 
         best_epoch_val_acc = history['val_acc'][best_epoch]
         best_epoch_val_loss = history['val_loss'][best_epoch]
@@ -1051,7 +1101,7 @@ def test(test_DIRS):
     device = RUNTIME_PARAMS['device']
     model = MYNET().to(device)
     for fold in range(5):
-        weightsfile = 'full.%d.%s.%s.model' % (
+        weightsfile = 'models/full.%d.%s.%s.model' % (
             fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
         weightsfile = os.path.join(INSTALL_DIR, weightsfile)
 
@@ -1107,11 +1157,11 @@ def test(test_DIRS):
     return None
 
 
-def main(al, inputdir, widget):
+def main(al, inputdir, multiclass, widget):
     RUNTIME_PARAMS['al'] = al
     RUNTIME_PARAMS['inputdir'] = inputdir
     RUNTIME_PARAMS['widget'] = widget
-    RUNTIME_PARAMS['multiclass'] = True  # individual muscle segmentation (vs. whole muscle)
+    RUNTIME_PARAMS['multiclass'] = multiclass  # individual muscle segmentation (vs. whole muscle)
 
     if RUNTIME_PARAMS['widget'] is not None:
         RUNTIME_PARAMS['widget']['text'] = 'Calculating mask...'
@@ -1158,7 +1208,7 @@ def main(al, inputdir, widget):
 
         DIRS = []
         for DATA_DIR in ['brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']:
-            for de in glob.glob(os.path.join(DATA_DIR, '*')):
+            for de in glob.glob(os.path.join('data/'+DATA_DIR, '*')):
                 if not os.path.isdir(de):
                     if DEBUG:
                         print(de+' is not a directory')
@@ -1185,13 +1235,13 @@ def main(al, inputdir, widget):
                 for f in files:
                     os.rename(f, f.replace('_lg_', '_'))
 
-                if False and ll == 'calf' and de in [
+                if False and ll == 'calf' and de.replace('data/','') in [
                         'hypopp/015_b', 'hypopp/016_b', 'hypopp/017_b', 'hypopp/019_b', 'hypopp/022_b', 'ibmcmt_p2/p2-046', 'ibmcmt_p2/p2-026', 'ibmcmt_p4/p4-008', 'ibmcmt_p4/p4-029', 'ibmcmt_p4/p4-030', 'ibmcmt_p3/p3-030', 'ibmcmt_p4/p4-054', 'ibmcmt_p4/p4-071', 'ibmcmt_p5/p5-033', 'ibmcmt_p3/p3-046', 'ibmcmt_p5/p5-042', 'ibmcmt_p5/p5-044', 'ibmcmt_p5/p5-049', 'ibmcmt_p5/p5-060', 'ibmcmt_p6/p6-008', 'ibmcmt_p5/p5-032', 'ibmcmt_p6/p6-032', 'ibmcmt_p5/p5-039', 'ibmcmt_p6/p6-044', 'ibmcmt_p6/p6-062', 'ibmcmt_p4/p4-046', 'ibmcmt_p4/p4-049']:
                     if DEBUG:
                         print('skipping %s that has L/R segmented on different slices or only one side segmented' % (de))
                     continue
 
-                if ll == 'thigh' and de in [
+                if ll == 'thigh' and de.replace('data/','') in [
                     'ibmcmt_p3/p3-072',  # mask is out-of-alignment
                     'ibmcmt_p5/p5-004',  # looks a bit off
                 ]:
@@ -1200,14 +1250,14 @@ def main(al, inputdir, widget):
                     assert(False)
                     continue
 
-                if False and ll == 'calf' and de in [
+                if False and ll == 'calf' and de.replace('data/','') in [
                     'ibmcmt_p1/p1-001b',  # looks quite badly segmented
                 ]:
                     if DEBUG:
                         print('skipping %s that has bad mask' % (de))
                     continue
 
-                if False and ll == 'calf' and de in [
+                if False and ll == 'calf' and de.replace('data/','') in [
                     'ibmcmt_p2/p2-065',  # actually might be good to include
                     'ibmcmt_p3/p3-047',  # actually looks good
                     'ibmcmt_p3/p3-055',  # actually looks good
@@ -1230,11 +1280,11 @@ def main(al, inputdir, widget):
             train_DIRS = sorted(DIRS[:])
             if RUNTIME_PARAMS['al'] == 'calf':
                 test_DIRS = [
-                    'calf^ibmcmt_p2/p2-008',
+                    'calf^data/ibmcmt_p2/p2-008',
                 ]
             else:
                 test_DIRS = [
-                    'thigh^ibmcmt_p1/p1-007b',
+                    'thigh^data/ibmcmt_p1/p1-007b',
                 ]
 
             train_DIRS = np.array(train_DIRS)
@@ -1253,17 +1303,17 @@ def main(al, inputdir, widget):
             print(outloop_req)
 
             difficult_cases = [
-                #        'thigh^ibmcmt_p1/p1-007a',
-                #        'thigh^ibmcmt_p1/p1-007b',
-                #        'thigh^ibmcmt_p2/p2-008',
-                #        'thigh^ibmcmt_p2/p2-008b',
-                #        'calf^ibmcmt_p4/p4-044',
-                #        'calf^ibmcmt_p4/p4-061',
-                #        'calf^hypopp/006_b',
-                #        'calf^ibmcmt_p2/p2-008',
-                #        'calf^ibmcmt_p2/p2-030',
-                #        'calf^ibmcmt_p2/p2-030b',
-                #        'calf^ibmcmt_p2/p2-008b',
+                #        'thigh^data/ibmcmt_p1/p1-007a',
+                #        'thigh^data/ibmcmt_p1/p1-007b',
+                #        'thigh^data/ibmcmt_p2/p2-008',
+                #        'thigh^data/ibmcmt_p2/p2-008b',
+                #        'calf^data/ibmcmt_p4/p4-044',
+                #        'calf^data/ibmcmt_p4/p4-061',
+                #        'calf^data/hypopp/006_b',
+                #        'calf^data/ibmcmt_p2/p2-008',
+                #        'calf^data/ibmcmt_p2/p2-030',
+                #        'calf^data/ibmcmt_p2/p2-030b',
+                #        'calf^data/ibmcmt_p2/p2-008b',
             ]
 
             DSCs = []
@@ -1374,13 +1424,14 @@ def main(al, inputdir, widget):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("mmseg_ll")
-    parser.add_argument('--version', action='version', version='1.0.0')
     parser.add_argument('-al', type=str, help='anatomical location (calf/thigh)')
     parser.add_argument('-inputdir', type=str, help='input directory/folder (or train/validate)')
+    parser.add_argument('--multiclass', action="store_true", help='individual muscle segmentation (vs. whole muscle)')
+    parser.add_argument('--version', action='version', version='1.1.0')
     args = parser.parse_args()
 
     if args.inputdir is None or args.al is None:
         parser.print_help()
         sys.exit(1)
 
-    main(args.al, args.inputdir, widget=None)
+    main(args.al, args.inputdir, args.multiclass, widget=None)
