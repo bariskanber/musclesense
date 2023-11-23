@@ -249,7 +249,10 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if not os.path.isdir(t1t2stir):
             raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
         
-        for keyword in ['stir','STIR']:
+        #keywords = ['stir','STIR']
+        keywords = ['t1w','t1_tse']
+        
+        for keyword in keywords:
             dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,ll))
             if len(dirlist)==0:
                 dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll]))
@@ -257,19 +260,32 @@ def load_case_base(inputdir, DIR, multiclass, test):
                 break
         
         if len(dirlist)==0:
-            if t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
+            if 'stir' in keywords and ll=='calf' and t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
                             'data/brcalskd_t1_t2_stir/BRCALSKD_002A/nii',
-                            'data/ibmcmt_t1_t2_stir/p1-011b/nii'
+                            'data/ibmcmt_t1_t2_stir/p1-011b/nii',
+                            'data/ibmcmt_t1_t2_stir/p2-042/nii',
+                            ]:
+                pass
+            elif 'stir' in keywords and ll=='thigh' and t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
+                            'data/brcalskd_t1_t2_stir/BRCALSKD_002A/nii',
                             ]:
                 pass
             else:
-                raise Exception('No STIR found in '+t1t2stir)
+                raise Exception('No %s found in %s'%(keywords,t1t2stir))
             
-        if len(dirlist)>1:
-            raise Exception('>1 STIR found in '+t1t2stir)
-        
-        if len(dirlist)==1:
-            print('register')
+        for toreg in dirlist:
+            print('Register '+toreg+' to '+filename)
+            outputnii = os.path.join(os.path.dirname(filename),'%s_%s_dixon_space_%s'%(keywords[0],ll,os.path.basename(toreg)))
+            print('outputnii',outputnii)
+            if os.path.exists(outputnii):
+                print('Aready done')
+                continue
+            cmd = 'reg_aladin -ref %s -flo %s -aff %s -res %s -omp 4'%(filename, toreg ,outputnii.replace('.nii.gz','_affine.txt'), outputnii)
+            print(cmd)
+            import subprocess
+            status,output = subprocess.getstatusoutput(cmd)
+            if status!=0:
+                raise Exception(output)
 
     dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
     assert checkDixonImage(dixon_345img), filename+' may be a phase image'
@@ -1247,7 +1263,7 @@ def main(al, inputdir, multiclass, widget):
                 ]:
                     if DEBUG:
                         print('skipping %s that has bad mask' % (de))
-                    assert(False)
+                    #assert(False)
                     continue
 
                 if False and ll == 'calf' and de.replace('data/','') in [
