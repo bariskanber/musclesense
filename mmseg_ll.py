@@ -181,7 +181,10 @@ def load_case_base(inputdir, DIR, multiclass, test):
     DIR = TK[1]
 
     if RUNTIME_PARAMS['modalities']==modalities_t1:
-        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't1.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon345.nii*'))
     else:
@@ -217,7 +220,10 @@ def load_case_base(inputdir, DIR, multiclass, test):
         assert checkDixonImage(dixon_345img), filename+' may be a phase image'
 
     if RUNTIME_PARAMS['modalities']==modalities_t1:
-        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't1.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon460.nii*'))
     else:
@@ -255,7 +261,10 @@ def load_case_base(inputdir, DIR, multiclass, test):
             assert checkDixonImage(dixon_460img), filename+' may be a phase image'
 
     if RUNTIME_PARAMS['modalities']==modalities_t1:
-        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't1.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon575.nii*'))
     else:
@@ -702,7 +711,12 @@ def print_scores(data, data_mask, preds, std_preds, test_id):
             if 'Amy_GOSH' in DIR:
                 fatfilename = glob.glob(os.path.join(DIR, '*DIXON_F.nii*'))[0]
             elif RUNTIME_PARAMS['inputdir'] != 'train' and RUNTIME_PARAMS['inputdir'] != 'validate':
-                fatfilename = glob.glob(os.path.join(DIR, 'fat.nii*'))[0]
+                if RUNTIME_PARAMS['modalities']==modalities_t1:
+                    fatfilename = glob.glob(os.path.join(DIR, 't1.nii*'))[0]
+                elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
+                    fatfilename = glob.glob(os.path.join(DIR, 't2_stir.nii*'))[0]
+                else:
+                    fatfilename = glob.glob(os.path.join(DIR, 'fat.nii*'))[0]
             else:
                 fatfilename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/fat.nii.gz')
                 if not os.path.exists(fatfilename):
