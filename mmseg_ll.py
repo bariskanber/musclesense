@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!miniconda3/bin/python
 import os
 import numpy as np
 import nibabel as nib
@@ -44,7 +44,12 @@ INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 print('INSTALL_DIR', INSTALL_DIR)
 print('MODULE_NAME', MODULE_NAME)
 
-     
+modalities_dixon_345_460_575 = 'dixon_345_460_575'
+modalities_t1 = 't1'
+modalities_t2_stir = 't2_stir'
+
+available_modalities = [modalities_dixon_345_460_575, modalities_t1, modalities_t2_stir]
+
 def get_subject_id_from_DIR(DIR):
     DIR = DIR.split('^')  # e.g. thigh^data/brcalskd/BRCALSKD_056C
     assert (len(DIR) >= 2)
@@ -175,30 +180,9 @@ def load_case_base(inputdir, DIR, multiclass, test):
     ll = TK[0]
     DIR = TK[1]
 
-    if inputdir != 'train' and inputdir != 'validate':
-        filename = get_fmf(os.path.join(DIR, 'fat.nii*'))
-    else:
-        filename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/fat.nii.gz')
-        if not os.path.exists(filename):
-            filename = os.path.join(DIR, 'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
-
-    fatimgobj, fatimg = load_BFC_image(filename, test)
-    numvox = np.product(fatimg.shape)
-    if np.sum(fatimg > 100)/numvox >= 0.30:
-        raise Exception('Failed QC test '+DIR)
-
-    if inputdir != 'train' and inputdir != 'validate':
-        filename = get_fmf(os.path.join(DIR, 'water.nii*'))
-    else:
-        filename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/water.nii.gz')
-        if not os.path.exists(filename):
-            filename = os.path.join(DIR, 'ana/fatfraction/'+llshortdict[ll]+'/water.nii.gz')
-
-    waterimgobj, waterimg = load_BFC_image(filename, test)
-    if not np.array_equal(fatimgobj.header.get_zooms(), waterimgobj.header.get_zooms()):
-        raise Exception('Fat and water image resolutions are different for '+DIR)
-
-    if inputdir != 'train' and inputdir != 'validate':
+    if RUNTIME_PARAMS['modalities']==modalities_t1:
+        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon345.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_345_'+ll+'.nii.gz')
@@ -224,75 +208,17 @@ def load_case_base(inputdir, DIR, multiclass, test):
             dixfile = dixfile[::-1]
             
         filename = dixfile[0]
-        
-        # register t1_t2_stir to dixon
-        if filename.startswith('data/ibmcmt_p1/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p1/','')
-        elif filename.startswith('data/ibmcmt_p2/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p2/','')
-        elif filename.startswith('data/ibmcmt_p3/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p3/','')
-        elif filename.startswith('data/ibmcmt_p4/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p4/','')
-        elif filename.startswith('data/ibmcmt_p5/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p5/','')
-        elif filename.startswith('data/ibmcmt_p6/'):
-            t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p6/','')
-        elif filename.startswith('data/brcalskd/'):
-            t1t2stir = 'data/brcalskd_t1_t2_stir/' + filename.replace('data/brcalskd/','')
-        elif filename.startswith('data/hypopp/'):
-            t1t2stir = 'data/hypopp_t1_t2_stir/' + filename.replace('data/hypopp/','')
-        else:
-            raise Exception('Unexpected condition')
-        
-        t1t2stir = os.path.dirname(t1t2stir)
-        if not os.path.isdir(t1t2stir):
-            raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
-        
-        #keywords = ['stir','STIR']
-        keywords = ['t1w','t1_tse']
-        
-        for keyword in keywords:
-            dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,ll))
-            if len(dirlist)==0:
-                dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll]))
-            else:
-                break
-        
-        if len(dirlist)==0:
-            if 'stir' in keywords and ll=='calf' and t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
-                            'data/brcalskd_t1_t2_stir/BRCALSKD_002A/nii',
-                            'data/ibmcmt_t1_t2_stir/p1-011b/nii',
-                            'data/ibmcmt_t1_t2_stir/p2-042/nii',
-                            ]:
-                pass
-            elif 'stir' in keywords and ll=='thigh' and t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
-                            'data/brcalskd_t1_t2_stir/BRCALSKD_002A/nii',
-                            ]:
-                pass
-            else:
-                raise Exception('No %s found in %s'%(keywords,t1t2stir))
-            
-        for toreg in dirlist:
-            print('Register '+toreg+' to '+filename)
-            outputnii = os.path.join(os.path.dirname(filename),'%s_%s_dixon_space_%s'%(keywords[0],ll,os.path.basename(toreg)))
-            print('outputnii',outputnii)
-            if os.path.exists(outputnii):
-                print('Aready done')
-                continue
-            cmd = 'reg_aladin -ref %s -flo %s -aff %s -res %s -omp 4'%(filename, toreg ,outputnii.replace('.nii.gz','_affine.txt'), outputnii)
-            print(cmd)
-            import subprocess
-            status,output = subprocess.getstatusoutput(cmd)
-            if status!=0:
-                raise Exception(output)
+        if False:
+            from register_t1_t2_stir_to_dixon import register_t1_t2_stir_to_dixon
+            register_t1_t2_stir_to_dixon(filename, ll, llshortdict)
 
     dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
-    assert checkDixonImage(dixon_345img), filename+' may be a phase image'
-    if not np.array_equal(fatimgobj.header.get_zooms(), dixon_345imgobj.header.get_zooms()):
-        raise Exception('Fat and dixon_345 image resolutions are different for '+DIR)
+    if RUNTIME_PARAMS['modalities']==modalities_dixon_345_460_575:
+        assert checkDixonImage(dixon_345img), filename+' may be a phase image'
 
-    if inputdir != 'train' and inputdir != 'validate':
+    if RUNTIME_PARAMS['modalities']==modalities_t1:
+        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon460.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_460_'+ll+'.nii.gz'))
@@ -318,18 +244,19 @@ def load_case_base(inputdir, DIR, multiclass, test):
         filename = dixfile[0]
 
     dixon_460imgobj, dixon_460img = load_BFC_image(filename, test)
-    if not np.array_equal(fatimgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
+    if not np.array_equal(dixon_345imgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
        CAUTION=True
-       if DEBUG: print('CAUTION: Fat and dixon_460 image resolutions are different for '+DIR)
+       if DEBUG: print('CAUTION: dixon_345 and dixon_460 image resolutions are different for '+DIR)
 
-    if 0 and filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
-        pass
-    else:
-        assert checkDixonImage(dixon_460img), filename+' may be a phase image'
+    if RUNTIME_PARAMS['modalities']==modalities_dixon_345_460_575:
+        if 0 and filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
+            pass
+        else:
+            assert checkDixonImage(dixon_460img), filename+' may be a phase image'
 
-    fatimg = dixon_460img
-
-    if inputdir != 'train' and inputdir != 'validate':
+    if RUNTIME_PARAMS['modalities']==modalities_t1:
+        filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon575.nii*'))
     else:
         dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_575_'+ll+'.nii.gz'))
@@ -355,14 +282,15 @@ def load_case_base(inputdir, DIR, multiclass, test):
         filename = dixfile[0]
 
     dixon_575imgobj, dixon_575img = load_BFC_image(filename, test)
-    if not np.array_equal(fatimgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
+    if not np.array_equal(dixon_345imgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
         CAUTION=True
-        if DEBUG: print('CAUTION: Fat and dixon_575 image resolutions are different for '+DIR)
+        if DEBUG: print('CAUTION: dixon_345 and dixon_575 image resolutions are different for '+DIR)
 
-    if filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
-        pass
-    else:
-        assert checkDixonImage(dixon_575img), filename+' may be a phase image'
+    if RUNTIME_PARAMS['modalities']==modalities_dixon_345_460_575:
+        if filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
+            pass
+        else:
+            assert checkDixonImage(dixon_575img), filename+' may be a phase image'
 
     # Mask selection (consider not using _af which are poor masks)
     if DEBUG:
@@ -411,12 +339,12 @@ def load_case_base(inputdir, DIR, multiclass, test):
     #    filename=None
 
     if filename is None:
-        maskimg = np.zeros(fatimg.shape, dtype=np.uint8)
+        maskimg = np.zeros(dixon_345img.shape, dtype=np.uint8)
     else:
         maskimgobj = nib.load(filename)
         maskimg = np.asanyarray(maskimgobj.dataobj)
-        if not np.array_equal(fatimgobj.header.get_zooms(), maskimgobj.header.get_zooms()):
-            raise Exception('Fat and mask image resolutions are different for '+DIR)
+        if not np.array_equal(dixon_345imgobj.header.get_zooms(), maskimgobj.header.get_zooms()):
+            raise Exception('dixon_345 and mask image resolutions are different for '+DIR)
 
     if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p2/p2-042':
         maskimg[:, :, 3] = 0
@@ -434,36 +362,21 @@ def load_case_base(inputdir, DIR, multiclass, test):
     if not multiclass:
         if filename is not None and not convertMRCCentreMaskToBinary(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToBinary returned False')
-
-        if ll == 'calf' and DIR.replace('data/','') in ['brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_039C', 'hypopp/014_b', 'hypopp/006_a', 'ibmcmt_p5/p5-034', 'ibmcmt_p3/p3-008', 'ibmcmt_p6/p6-008']:
-            pass
-        elif ll == 'thigh' and DIR.replace('data/','') in ['ibmcmt_p6/p6-008', 'hypopp/023_a', 'ibmcmt_p4/p4-027', 'ibmcmt_p4/p4-033', 'ibmcmt_p4/p4-062', 'ibmcmt_p4/p4-004', 'ibmcmt_p4/p4-046', 'brcalskd/BRCALSKD_028A', 'brcalskd/BRCALSKD_036C', 'ibmcmt_p2/p2-072', 'ibmcmt_p1/p1-014b', 'ibmcmt_p3/p3-067', 'ibmcmt_p3/p3-051', 'ibmcmt_p3/p3-011', 'ibmcmt_p2/p2-010', 'ibmcmt_p2/p2-041', 'ibmcmt_p4/p4-060']:
-            pass
-        elif (inputdir == 'train' or inputdir == 'validate'):
-            QQ = maskimg > 0
-            if np.sum(np.logical_and(fatimg[QQ] < 10, waterimg[QQ] < 10)) > 150:
-                if False:
-                    print('water', waterimg[QQ][np.logical_and(fatimg[QQ] < 10, waterimg[QQ] < 10)])
-                    print('fat', fatimg[QQ][np.logical_and(fatimg[QQ] < 10, waterimg[QQ] < 10)])
-                print('CHECK_VAL', np.sum(np.logical_and(fatimg[QQ] < 10, waterimg[QQ] < 10)))
-                print(filename)
-                raise Exception('Please check mask for '+DIR)
     else:
         if filename is not None and not convertMRCCentreMaskToStandard(DIR, ll, maskimg):
             raise Exception('convertMRCCentreMaskToStandard returned False')
 
-    return (fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION)
+    return (dixon_460img, dixon_345img, dixon_575img, maskimg, CAUTION)
 
 
 def load_case(inputdir, DIR, multiclass, test=False):
     try:
-        (fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION) = load_case_base(inputdir, DIR, multiclass, test)
+        (fatimg, dixon_345img, dixon_575img, maskimg, CAUTION) = load_case_base(inputdir, DIR, multiclass, test)
     except Exception as e:
         print(repr(e))
         print('Could not get image data for '+DIR)
         return None
 
-    assert (fatimg.shape == waterimg.shape)
     assert (fatimg.shape == dixon_345img.shape)
     assert (fatimg.shape == dixon_575img.shape)
     assert (fatimg.shape == maskimg.shape)
@@ -477,7 +390,7 @@ def load_case(inputdir, DIR, multiclass, test=False):
 
     maskimg = maskimg.astype(np.uint8)
 
-    return DIR, fatimg, waterimg, dixon_345img, dixon_575img, maskimg, CAUTION
+    return DIR, fatimg, dixon_345img, dixon_575img, maskimg, CAUTION
 
 
 def load_data(DIRS, test=False):
@@ -487,11 +400,11 @@ def load_data(DIRS, test=False):
         raise Exception('No data to load')
 
     print('Reading %d item(s)...' % len(DIRS))
-    n_jobs = 1#max(1, multiprocessing.cpu_count()//2)
+    n_jobs = max(1, multiprocessing.cpu_count()//2)
 
     ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, RUNTIME_PARAMS['multiclass'], test) for DIR in DIRS)
 
-    X_DIR, X_fatimg, X_waterimg, X_dixon_345img, X_dixon_575img, X_maskimg, X_CAUTION = zip(*ret)
+    X_DIR, X_fatimg, X_dixon_345img, X_dixon_575img, X_maskimg, X_CAUTION = zip(*ret)
 
     print('Read data time: {} seconds'.format(round(time.time() - start_time, 2)))
     
@@ -499,7 +412,6 @@ def load_data(DIRS, test=False):
 
     return list(filter(lambda x: x is not None, X_DIR)), \
         list(filter(lambda x: x is not None, X_fatimg)), \
-        list(filter(lambda x: x is not None, X_waterimg)), \
         list(filter(lambda x: x is not None, X_dixon_345img)), \
         list(filter(lambda x: x is not None, X_dixon_575img)), \
         list(filter(lambda x: x is not None, X_maskimg))
@@ -533,11 +445,11 @@ def scale_A_to_B(A, B):
 
 
 def read_and_normalize_data(DIRS, test=False):
-    DIR, fatimg, waterimg, dixon_345img, dixon_575img, maskimg = load_data(DIRS, test)
+    DIR, fatimg, dixon_345img, dixon_575img, maskimg = load_data(DIRS, test)
     if len(DIR) < 1:
         raise Exception('No data loaded')
 
-    DIR_new, fatimg_new, waterimg_new, dixon_345img_new, dixon_575img_new, maskimg_new = [], [], [], [], [], []
+    DIR_new, fatimg_new, dixon_345img_new, dixon_575img_new, maskimg_new = [], [], [], [], []
     for imgi in range(0, len(DIR)):
         for slice in range(0, fatimg[imgi].shape[2]):
             mask_validity = valid_mask(scale_to_target(maskimg[imgi][:, :, slice]), DIR[imgi]+'^slice'+str(slice))
@@ -547,12 +459,12 @@ def read_and_normalize_data(DIRS, test=False):
             elif mask_validity == MASK_VALIDITY_SINGLESIDED:
                 half_size = maskimg[imgi].shape[0]//2
                 if valid_mask(scale_to_target(maskimg[imgi][:half_size, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side1') in [MASK_VALIDITY_VALID, MASK_VALIDITY_SINGLESIDED]:
-                    for img_it in (fatimg, waterimg, dixon_345img, dixon_575img, maskimg):
+                    for img_it in (fatimg, dixon_345img, dixon_575img, maskimg):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][:half_size, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
                 elif valid_mask(scale_to_target(maskimg[imgi][half_size:, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side2') in [MASK_VALIDITY_VALID, MASK_VALIDITY_SINGLESIDED]:
-                    for img_it in (fatimg, waterimg, dixon_345img, dixon_575img, maskimg):
+                    for img_it in (fatimg, dixon_345img, dixon_575img, maskimg):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][half_size:, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
@@ -563,7 +475,6 @@ def read_and_normalize_data(DIRS, test=False):
 
             if TO_ADD:
                 fatslice = scale_to_target(fatimg[imgi][:, :, slice])
-                waterslice = scale_to_target(waterimg[imgi][:, :, slice])
                 maskslice = scale_to_target(maskimg[imgi][:, :, slice])
                 dixon_345slice = scale_to_target(dixon_345img[imgi][:, :, slice])
                 dixon_575slice = scale_to_target(dixon_575img[imgi][:, :, slice])
@@ -600,7 +511,6 @@ def read_and_normalize_data(DIRS, test=False):
                         continue
 
                 fatimg_new.append(fatslice)
-                waterimg_new.append(waterslice)
                 dixon_345img_new.append(dixon_345slice)
                 dixon_575img_new.append(dixon_575slice)
                 maskimg_new.append(maskslice)
@@ -613,21 +523,18 @@ def read_and_normalize_data(DIRS, test=False):
     DIR = DIR_new
 
     fatimg = np.array(fatimg_new, dtype=np.float32)
-    waterimg = np.array(waterimg_new, dtype=np.float32)
     dixon_345img = np.array(dixon_345img_new, dtype=np.float32)
     dixon_575img = np.array(dixon_575img_new, dtype=np.float32)
     maskimg = np.array(maskimg_new, dtype=np.uint8)
 
-    del DIR_new, fatimg_new, waterimg_new, dixon_345img_new, dixon_575img_new, maskimg_new
+    del DIR_new, fatimg_new, dixon_345img_new, dixon_575img_new, maskimg_new
 
     print('fatimg shape and type', fatimg.shape, fatimg.dtype)
-    print('waterimg shape and type', waterimg.shape, waterimg.dtype)
     print('dixon_345img shape and type', dixon_345img.shape, dixon_345img.dtype)
     print('dixon_575img shape and type', dixon_575img.shape, dixon_575img.dtype)
     print('maskimg shape and type', maskimg.shape, maskimg.dtype)
 
     fatimg = fatimg.reshape(fatimg.shape[0], fatimg.shape[1], fatimg.shape[2], 1)
-    waterimg = waterimg.reshape(waterimg.shape[0], waterimg.shape[1], waterimg.shape[2], 1)
     dixon_345img = dixon_345img.reshape(dixon_345img.shape[0], dixon_345img.shape[1], dixon_345img.shape[2], 1)
     dixon_575img = dixon_575img.reshape(dixon_575img.shape[0], dixon_575img.shape[1], dixon_575img.shape[2], 1)
     maskimg = maskimg.reshape(maskimg.shape[0], maskimg.shape[1], maskimg.shape[2], 1)
@@ -1039,14 +946,21 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
 
         model.load_state_dict(best_epoch_state_dict)
         if RUNTIME_PARAMS['inputdir'] == 'train':
-            modelfilename = 'models/full.%d.%s.%s.model' % (
-                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
+            modelfilename = 'models/full.%d.%s.%s.%s.model' % (
+                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
+                RUNTIME_PARAMS['modalities']
+                )
             torch.save(best_epoch_state_dict, modelfilename)
-            trainingMetricsFilename = 'full.%d.%s.%s.%s.pdf' % (
-                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
+            trainingMetricsFilename = 'full.%d.%s.%s.%s.%s.pdf' % (
+                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
+                RUNTIME_PARAMS['modalities'], RUNTIME_PARAMS['inputdir']
+                )
         else:
-            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.pdf' % (
-                RUNTIME_PARAMS['outerfold'], fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', RUNTIME_PARAMS['inputdir'])
+            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.%s.pdf' % (
+                RUNTIME_PARAMS['outerfold'], 
+                fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
+                RUNTIME_PARAMS['modalities'], RUNTIME_PARAMS['inputdir']
+                )
 
         saveTrainingMetrics(history, trainingMetricsFilename, os.path.join('metrics',trainingMetricsFilename))
 
@@ -1068,12 +982,13 @@ def train(train_DIRS, test_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             train_losses.extend([best_epoch_train_loss])
             best_epochs.append(best_epoch)
 
-        print('Fold %d [%s, %s, batch_size=%d, multiclass=%s]' % (
+        print('Fold %d [%s, %s, batch_size=%d, multiclass=%s, modalities=%s]' % (
                 fold+1, 
                 RUNTIME_PARAMS['al'], 
                 RUNTIME_PARAMS['inputdir'], 
                 RUNTIME_PARAMS['batch_size'], 
-                RUNTIME_PARAMS['multiclass']
+                RUNTIME_PARAMS['multiclass'],
+                RUNTIME_PARAMS['modalities'],
                 )
             )
         print('mean best epoch %d +- %d [range %d - %d]' % (np.mean(best_epochs),
@@ -1117,8 +1032,10 @@ def test(test_DIRS):
     device = RUNTIME_PARAMS['device']
     model = MYNET().to(device)
     for fold in range(5):
-        weightsfile = 'models/full.%d.%s.%s.model' % (
-            fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary')
+        weightsfile = 'models/full.%d.%s.%s.%s.model' % (
+            fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary',
+            RUNTIME_PARAMS['modalities']
+            )
         weightsfile = os.path.join(INSTALL_DIR, weightsfile)
 
         if not os.path.exists(weightsfile):
@@ -1173,9 +1090,10 @@ def test(test_DIRS):
     return None
 
 
-def main(al, inputdir, multiclass, widget):
+def main(al, inputdir, modalities, multiclass, widget):
     RUNTIME_PARAMS['al'] = al
     RUNTIME_PARAMS['inputdir'] = inputdir
+    RUNTIME_PARAMS['modalities'] = modalities
     RUNTIME_PARAMS['widget'] = widget
     RUNTIME_PARAMS['multiclass'] = multiclass  # individual muscle segmentation (vs. whole muscle)
 
@@ -1189,9 +1107,9 @@ def main(al, inputdir, multiclass, widget):
         h = pynvml.nvmlDeviceGetHandleByIndex(0)
         info = pynvml.nvmlDeviceGetMemoryInfo(h)
         gb = 1024.0*1024*1024
-        print(f'total    : {info.total/gb}')
-        print(f'free     : {info.free/gb}')
-        print(f'used     : {info.used/gb}')   
+        #print(f'total    : {info.total/gb}')
+        #print(f'free     : {info.free/gb}')
+        #print(f'used     : {info.used/gb}')   
         if info.free/gb<4:
             print('CUDA is low on memory')
         else:
@@ -1437,11 +1355,12 @@ def main(al, inputdir, multiclass, widget):
 
     print('Running time: {} hours'.format(round((time.time() - start_time)/3600.0, 1)))
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("mmseg_ll")
     parser.add_argument('-al', type=str, help='anatomical location (calf/thigh)')
     parser.add_argument('-inputdir', type=str, help='input directory/folder (or train/validate)')
+    parser.add_argument('-modalities', type=str, help='input modalities (one of %s; default: %s)'%(', '.join(available_modalities),
+                            available_modalities[0]), default=available_modalities[0])
     parser.add_argument('--multiclass', action="store_true", help='individual muscle segmentation (vs. whole muscle)')
     parser.add_argument('--version', action='version', version='1.1.0')
     args = parser.parse_args()
@@ -1450,4 +1369,4 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    main(args.al, args.inputdir, args.multiclass, widget=None)
+    main(args.al, args.inputdir, args.modalities, args.multiclass, widget=None)
