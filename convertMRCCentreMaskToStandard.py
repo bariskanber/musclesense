@@ -3,7 +3,7 @@ import numpy as np
 def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
     maskimg_original=maskimg.copy()
     
-    if ll=='calf' and 'brcalskd' in DIR:
+    if ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=16)
 
@@ -29,7 +29,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==14)]=16
         maskimg[np.where(maskimg_original==15)]=17
         maskimg[np.where(maskimg_original==16)]=0
-    elif ll=='thigh' and 'brcalskd' in DIR:
+    elif ll=='thigh' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=23)
 
@@ -57,9 +57,9 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==21)]=29
         maskimg[np.where(maskimg_original==22)]=30
         maskimg[np.where(maskimg_original==23)]=31
-    elif ll=='thigh' and 'ibmcmt_p' in DIR:
+    elif ll=='thigh' and ('ibmcmt_p' in DIR or 'arimoclomol' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):    
         assert(np.min(maskimg)==0)
-        assert(np.max(maskimg)<=32)
+        assert(np.max(maskimg)<=33)
 
         maskimg[np.where(maskimg_original==0)]=0
         maskimg[np.where(maskimg_original==1)]=1
@@ -74,6 +74,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==10)]=10
         maskimg[np.where(maskimg_original==11)]=11
         maskimg[np.where(maskimg_original==12)]=0
+        maskimg[np.where(maskimg_original==13)]=0
         maskimg[np.where(maskimg_original==21)]=21
         maskimg[np.where(maskimg_original==22)]=22
         maskimg[np.where(maskimg_original==23)]=23
@@ -86,6 +87,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==30)]=30
         maskimg[np.where(maskimg_original==31)]=31
         maskimg[np.where(maskimg_original==32)]=0
+        maskimg[np.where(maskimg_original==33)]=0
     elif ll=='thigh' and 'hypopp' in DIR:
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=32)
@@ -116,16 +118,13 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==30)]=30
         maskimg[np.where(maskimg_original==31)]=31
         maskimg[np.where(maskimg_original==32)]=0
-    elif ll=='calf' and ('hypopp' in DIR or 'ibmcmt_p1' in DIR or 'ibmcmt_p2' in DIR or 
-             'ibmcmt_p3' in DIR or 'ibmcmt_p4' in DIR or 'ibmcmt_p5' in DIR or 
-             'ibmcmt_p6' in DIR):
+    elif ll=='calf' and ('hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
         assert(np.min(maskimg)==0)
 
-        if DIR.replace('data/','') in ('hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018',
-            'ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b'):
-                maskimg[maskimg>18]=0 # These cases have suporous values>18 but masks otherwise look ok
-
-        assert np.max(maskimg)<=18, 'ERROR: np.max(maskimg)>18 for '+DIR
+        if DIR.replace('data/','') in ['hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018','ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b']:
+            maskimg[maskimg>18]=0 # These cases have suporous values>18 but masks otherwise look ok
+        
+        assert np.max(maskimg)<=19, 'ERROR: np.max(maskimg)>19 for '+DIR
 
         maskimg[np.where(maskimg_original==0)]=0
         maskimg[np.where(maskimg_original==1)]=1
@@ -145,6 +144,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==16)]=16
         maskimg[np.where(maskimg_original==17)]=17
         maskimg[np.where(maskimg_original==18)]=0
+        maskimg[np.where(maskimg_original==19)]=0
     else:
         return False
 

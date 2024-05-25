@@ -11,6 +11,7 @@ from joblib import Parallel, delayed
 import argparse
 import urllib.request
 from tqdm import tqdm
+import traceback
 from sklearn.model_selection import GroupKFold
 
 import pynvml
@@ -29,7 +30,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-DEBUG = False
+DEBUG = True
 llshortdict = {'thigh': 'th', 'calf': 'cf'}
 
 scale_down_factor = 1
@@ -55,6 +56,42 @@ def get_subject_id_from_DIR(DIR):
     assert (len(DIR) >= 2)
     DIR = DIR[1]
 
+    if 'arimoclomol' in DIR: 
+        subject = os.path.basename(DIR) # e.g. kansas_11_011_12m
+        if subject.startswith('kansas'):
+            assert (len(subject) >= 13)
+            subject = 'arimoclomol.'+subject[:13]
+            print(subject)
+            return subject
+        elif subject.startswith('nhnn'): # e.g. nhnn_020-031_20m
+            assert (len(subject) >= 12)
+            subject = 'arimoclomol.'+subject[:12]
+            print(subject)
+            return subject
+        else:
+            assert(False)
+                
+    if 'dhmn' in DIR: 
+        subject = os.path.basename(DIR) # e.g. gait_110b
+        assert (len(subject) >= 8)
+        subject = 'dhmn.'+subject[:8]
+        #print(subject)
+        return subject
+        
+    if 'mdacmt' in DIR: 
+        subject = os.path.basename(DIR) # e.g. iowa_066a
+        assert (len(subject) == 9)
+        subject = 'mdacmt.'+subject[:8]
+        #print(subject)
+        return subject
+        
+    if 'alscs' in DIR: 
+        subject = os.path.basename(DIR).replace('Baloh_', '') # e.g. Baloh_42350_001B
+        assert (len(subject) >= 9)
+        subject = 'alscs.'+subject[:9]
+        #print(subject)
+        return subject
+        
     if 'BRCALSKD' in DIR:
         subject = os.path.basename(DIR).replace('BRCALSKD_', '')
         assert (len(subject) == 4)
@@ -104,8 +141,20 @@ MASK_VALIDITY_BLANKMASK = 2
 MASK_VALIDITY_BAD = 3
 MASK_VALIDITY_SINGLESIDED = 4
 
-
 def valid_mask(mask_original, help_str):
+    validity = __valid_mask(mask_original, help_str)
+    
+    if DEBUG and '^side' in help_str:
+        plt.figure()
+        plt.imshow(mask_original)
+        plt.title(help_str+', validity = '+str(validity))
+        if not os.path.exists('__DEBUG'): os.mkdir('__DEBUG')
+        plt.savefig('__DEBUG/'+help_str.replace('/','_')+'.png')
+        plt.close()
+
+    return validity
+    
+def __valid_mask(mask_original, help_str):
     mask = mask_original.copy()
     if RUNTIME_PARAMS['multiclass']:
         if RUNTIME_PARAMS['al'] == 'calf':
@@ -129,7 +178,7 @@ def valid_mask(mask_original, help_str):
     if not np.array_equal(np.unique(mask), [0, 1]):
         raise Exception("Mask values not 0 and 1: "+help_str)
 
-    if mask_sum/np.prod(mask.shape) < 0.03:
+    if mask_sum/np.prod(mask.shape) < 0.01:
         if DEBUG:
             print('WARNING: %s with a value of %f, assuming this is not a valid mask' %
                   (help_str, mask_sum/np.prod(mask.shape)))
@@ -141,7 +190,7 @@ def valid_mask(mask_original, help_str):
     ratio = float(diffY)/mask.shape[0]
     if ratio < 0.5:
         if DEBUG:
-            print('WARNING: ratio<0.5 for %s, assuming this is a one sided mask' % (help_str))
+            print('WARNING: ratio (%f)<0.5 for %s, assuming this is a one sided mask' % (ratio,help_str))
         return MASK_VALIDITY_SINGLESIDED
 
     return MASK_VALIDITY_VALID
@@ -185,20 +234,28 @@ def load_case_base(inputdir, DIR, multiclass, test):
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
             filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon345.nii*'))
     else:
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_345_'+ll+'.nii.gz')
-                            )  # e.g. 1-0017-Dixon_TE_345_calf.nii.gz
+        filestorename = glob.glob(os.path.join(DIR, 'nii/*-dix3d_TE*.nii.gz'))
+        for filetorename in filestorename:
+            print('Renaming '+filetorename)
+            os.rename(filetorename, filetorename.replace('-dix3d_','-Dixon_'))
+            
+        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+ll+'.nii.gz'))
         if len(dixfile) == 0:
-            # e.g. 1-0017-Dixon_TE_345_cf.nii.gz
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz'))
-        assert len(dixfile) == 2, 'Failed len(dixfile)==2'
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+llshortdict[ll]+'.nii.gz'))
+        if len(dixfile) == 0:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*3*45_'+llshortdict[ll].upper()+'*.nii.gz'))
+        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).replace('-Dixon_TE_345_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).replace('-Dixon_TE_345_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_345_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
+        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -224,18 +281,23 @@ def load_case_base(inputdir, DIR, multiclass, test):
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
             filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon460.nii*'))
     else:
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_460_'+ll+'.nii.gz'))
+        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+ll+'.nii.gz'))
         if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz'))
-        assert (len(dixfile) == 2)
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+llshortdict[ll]+'.nii.gz'))
+        if len(dixfile) == 0:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*4*60_'+llshortdict[ll].upper()+'*.nii.gz'))
+        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).replace('-Dixon_TE_460_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).replace('-Dixon_TE_460_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_460_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
+        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -265,18 +327,23 @@ def load_case_base(inputdir, DIR, multiclass, test):
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
             filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+    elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
+        if inputdir != 'train' and inputdir != 'validate':
+            filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
+        else:
+            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, 'dixon575.nii*'))
     else:
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_575_'+ll+'.nii.gz'))
+        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+ll+'.nii.gz'))
         if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz'))
-        assert (len(dixfile) == 2)
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+llshortdict[ll]+'.nii.gz'))
+        if len(dixfile) == 0:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*5*75_'+llshortdict[ll].upper()+'*.nii.gz'))
+        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).replace('-Dixon_TE_575_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).replace('-Dixon_TE_575_'+ll+'.nii.gz',
-                                                   '').replace('-Dixon_TE_575_'+llshortdict[ll]+'.nii.gz', '').replace('-', '.')
+        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -306,6 +373,20 @@ def load_case_base(inputdir, DIR, multiclass, test):
         print('selecting mask')
     if 'brcalskd' in DIR:
         filename = os.path.join(DIR, 'roi/Dixon345_'+llshortdict[ll]+'_uk_3.nii.gz')
+    elif 'dhmn' in DIR:
+        filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_AA_3.nii.gz')
+    elif 'arimoclomol' in DIR:
+        filename = os.path.join(DIR, 'roi/Dixon_TE_345_'+llshortdict[ll]+'_ssal.nii.gz')
+    elif 'alscs' in DIR:
+        filename = os.path.join(DIR, 'roi/Dixon345_'+llshortdict[ll]+'_jm_3.nii.gz')
+        if not os.path.exists(filename):
+            filename = os.path.join(DIR, 'roi/Dixon345_'+llshortdict[ll]+'_as_3.nii.gz')
+    elif 'mdacmt' in DIR:
+        filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_cj_3.nii.gz')
+        if not os.path.exists(filename):
+            filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_cd_3.nii.gz')
+        if not os.path.exists(filename):
+            filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_cmd_3.nii.gz')
     elif 'hypopp' in DIR:
         filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_bk.nii.gz')
         if not os.path.exists(filename):
@@ -383,6 +464,7 @@ def load_case(inputdir, DIR, multiclass, test=False):
         (fatimg, dixon_345img, dixon_575img, maskimg, CAUTION) = load_case_base(inputdir, DIR, multiclass, test)
     except Exception as e:
         print(repr(e))
+        print(traceback.format_exc())
         print('Could not get image data for '+DIR)
         return None
 
@@ -1155,21 +1237,42 @@ def main(al, inputdir, modalities, multiclass, widget):
         torch.backends.cudnn.deterministic = True
 
         DIRS = []
-        for DATA_DIR in ['brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']:
+        for DATA_DIR in ['arimoclomol','mdacmt','alscs','dhmn','brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']:
             for de in glob.glob(os.path.join('data/'+DATA_DIR, '*')):
                 if not os.path.isdir(de):
                     if DEBUG:
                         print(de+' is not a directory')
                     continue
 
-                if not os.path.isdir(os.path.join(de, 'ana/fatfraction/'+ll)) and not os.path.isdir(os.path.join(de, 'ana/fatfraction/'+llshortdict[ll])):
-                    if DEBUG:
-                        print(de+' does not have a '+ll+' directory')
-                    continue
+                #if not os.path.isdir(os.path.join(de, 'ana/fatfraction/'+ll)) and not os.path.isdir(os.path.join(de, 'ana/fatfraction/'+llshortdict[ll])):
+                #    if DEBUG:
+                #        print(de+' does not have a '+ll+' directory')
+                #    continue
+                
+                if RUNTIME_PARAMS['modalities']==modalities_t1:
+                    files = glob.glob(os.path.join(de, 'nii/t1w_%s_*.nii*'%(ll)))
+                    if len(files)==0:
+                        files = glob.glob(os.path.join(de, 'nii/*-T1_*_%s.nii.gz'%(llshortdict[ll].upper())))
+                    if len(files)==0: 
+                        if DEBUG:
+                            print(de+' does not have a T1 image')
+                        continue                
+                elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
+                    files = glob.glob(os.path.join(de, 'nii/stir_%s_*.nii*'%(ll)))
+                    if len(files)==0:
+                        files = glob.glob(os.path.join(de, 'nii/*_STIR_%s.nii.gz'%(llshortdict[ll].upper())))
+                    if len(files)==0:                
+                        if DEBUG:
+                            print(de+' does not have a STIR image')
+                        continue                
 
-                files = glob.glob(os.path.join(de, 'roi/?ixon345_'+ll+'_*.nii.gz'))
+                files = glob.glob(os.path.join(de, 'roi/?ixon*345_'+ll+'_*.nii.gz'))
                 if len(files) == 0:
-                    files = glob.glob(os.path.join(de, 'roi/?ixon345_'+llshortdict[ll]+'_*.nii.gz'))
+                    files = glob.glob(os.path.join(de, 'roi/?ixon*345_'+llshortdict[ll]+'_*.nii.gz'))
+                if len(files) == 0:
+                    files = glob.glob(os.path.join(de, 'roi/'+ll+'_?ixon*345_*.nii.gz'))
+                if len(files) == 0:
+                    files = glob.glob(os.path.join(de, 'roi/'+llshortdict[ll]+'_?ixon*345_*.nii.gz'))
                 if len(files) == 0:
                     files = glob.glob(os.path.join(de, 'acq/ROI/'+ll+'_*.nii.gz'))
                 if len(files) == 0:
@@ -1181,6 +1284,8 @@ def main(al, inputdir, modalities, multiclass, widget):
 
                 files = glob.glob(os.path.join(de, 'nii/*_lg_*.nii.gz'))
                 for f in files:
+                    if DEBUG:
+                        print('Renaming %s as %s'%(f, f.replace('_lg_', '_')))
                     os.rename(f, f.replace('_lg_', '_'))
 
                 if False and ll == 'calf' and de.replace('data/','') in [
@@ -1223,6 +1328,7 @@ def main(al, inputdir, modalities, multiclass, widget):
         if RUNTIME_PARAMS['smoketest']:
             DIRS = DIRS[:20]
         print('%d cases found' % (len(DIRS)))
+        #print(DIRS)
 
         if RUNTIME_PARAMS['inputdir'] == 'train':
             train_DIRS = sorted(DIRS[:])

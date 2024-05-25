@@ -1,6 +1,3 @@
-brcalskd/
-hypopp/
-ibmcmt_p*/
 test_cases/
 miniconda3/
 *.model
@@ -14,3 +11,5 @@ notes*
 *.pdf
 *.png
 data/
+slurm*.out
+
