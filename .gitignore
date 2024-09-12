@@ -13,4 +13,5 @@ notes*
 data/
 slurm*.out
 +.gitignore
+*.sh
 
