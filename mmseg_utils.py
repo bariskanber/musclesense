@@ -1,3 +1,4 @@
+import glob
 import numpy as np
 from scipy import ndimage as nd
 
@@ -34,3 +35,21 @@ def checkDixonImage(dixon_img) -> bool:
     if np.argmax(hist) == 0: return True
     else:
         return False
+        
+def get_fmf(pattern):
+    """Get first file matching given pattern or raise an exception
+
+    Args:
+        pattern (str): File pattern to match
+
+    Returns:
+        filename: The first matching filename
+        
+    Example:
+        get_fmf('/home/myfile.*')
+    """
+    files = glob.glob(pattern)
+    if len(files) < 1:
+        raise Exception(f'ERROR: No files found matching {pattern}')
+    return files[0]
+
