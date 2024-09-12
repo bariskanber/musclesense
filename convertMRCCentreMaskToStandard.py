@@ -3,6 +3,9 @@ import numpy as np
 def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
     maskimg_original=maskimg.copy()
     
+    if len(np.unique(maskimg))<3:
+        raise Exception('Not enough labels detected, len(np.unique(maskimg)) = '+str(len(np.unique(maskimg))))
+    
     if ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=16)
@@ -57,7 +60,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==21)]=29
         maskimg[np.where(maskimg_original==22)]=30
         maskimg[np.where(maskimg_original==23)]=31
-    elif ll=='thigh' and ('ibmcmt_p' in DIR or 'arimoclomol' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):    
+    elif ll=='thigh' and ('poems' in DIR or 'ibmcmt_p' in DIR or 'arimoclomol' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):    
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=33)
 
@@ -118,7 +121,7 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
         maskimg[np.where(maskimg_original==30)]=30
         maskimg[np.where(maskimg_original==31)]=31
         maskimg[np.where(maskimg_original==32)]=0
-    elif ll=='calf' and ('hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
+    elif ll=='calf' and ('poems' in DIR or 'hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
         assert(np.min(maskimg)==0)
 
         if DIR.replace('data/','') in ['hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018','ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b']:

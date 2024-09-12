@@ -25,7 +25,7 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
         maskimg[np.where(maskimg==23)]=0 # Left Femur marrow
 
         maskimg[np.where(maskimg>0)]=1
-    elif ll=='thigh' and ('ibmcmt_p' in DIR or 'arimoclomol' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
+    elif ll=='thigh' and ('poems' in DIR or 'ibmcmt_p' in DIR or 'arimoclomol' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=33)
 
@@ -48,7 +48,7 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
         maskimg[np.where(maskimg==32)]=0 # Left Subcutaneous fat PL
 
         maskimg[np.where(maskimg>0)]=1
-    elif ll=='calf' and ('hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
+    elif ll=='calf' and ('poems' in DIR or 'hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
         assert(np.min(maskimg)==0)
         
         if DIR.replace('data/','') in ['hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018','ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b']:
