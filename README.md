@@ -11,7 +11,7 @@ Download the latest [release version](https://github.com/bariskanber/musclesense
 As an example, run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory <test_dir>.
 
 ```
-<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -inputdir <test_dir> --multiclass
+<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -modalities t1 -inputdir <test_dir> --multiclass
 ```
 
 <test_dir> is expected to have the following directory structure:
