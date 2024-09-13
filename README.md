@@ -8,16 +8,16 @@ The following are currently supported: MRI sequences (3-point Dixon, T1w, T2-sti
 ### Getting started
 Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases).
 
-As an example, run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory <SUBJECT_DIR>.
+As an example, run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory <test_dir>.
 
 ```
-<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -inputdir <SUBJECT_DIR> --multiclass
+<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -inputdir <test_dir> --multiclass
 ```
 
-<SUBJECT_DIR> is expected to have the following directory structure:
+<test_dir> is expected to have the following directory structure:
 
 ```
-<SUBJECT_DIR>/
+<test_dir>/
 ├── subject1/
 │   └── t1.nii.gz
 ├── subject2/
