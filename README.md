@@ -1,22 +1,24 @@
 ### Musclesense 
 
-Musclesense is a trained neural network for the segmentation/parcellation of muscle MR images.
+Musclesense is a trained ANN for the segmentation/parcellation of muscle MR images. 
 
-The following MRI acquisitions are supported: 3-point Dixon, T1w, T2-stir
+The following are currently supported: MRI acquisitions (3-point Dixon, T1w, T2-stir), OSes (Linux), anatomical locations (calf, thigh)
 
 ### Examples
 
-![Screenshot from 2021-11-14 02-24-45](https://user-images.githubusercontent.com/12815964/141664991-b521a9a8-9287-4387-b9df-0d4917fe024a.png)
+![image](https://github.com/user-attachments/assets/ccd24a91-dc67-4651-bd53-b4b3c74b793a)
+![image](https://github.com/user-attachments/assets/ff11300e-c371-4440-ae0a-d6e54fe82194)
+
 
 ### Getting started
 
-Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Alternatively, you can download or clone the repository instead if you would like to test the latest development version. 
+Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Alternatively, you can download or clone the repository if you would like to test the latest build. 
 
-Simply save and extract your download at a location of your choice on your computer. 
+To run the the software, type ***<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -h*** where ***<INSTALL_DIR>*** is the directory where you have downloaded the software.
 
-It is no longer necessary to download any model weights as these are automatically retrieved by the software as required.
+### Funding
 
-To run the the software, type ***./miniconda3/bin/python mmseg_ll.py -h*** from the installation directory
+We are grateful to the following for their funding and support of this project: Wellcome Trust, National Institute for Health and Care Research, National Brain Appeal
 
 ### Enquiries
 Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk)
