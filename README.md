@@ -1,5 +1,5 @@
 ### Musclesense 
-Musclesense is a trained ANN for the segmentation of muscle MR images. 
+Musclesense is a trained neural network for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
 The following are currently supported: MRI sequences (3-point Dixon, T1w, T2-stir), platforms (Ubuntu), anatomical sites (calf, thigh).
 
 ### Example
