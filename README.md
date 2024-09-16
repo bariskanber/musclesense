@@ -25,7 +25,7 @@ As an example, run the following command to perform individual muscle segmentati
 ```
 
 ### Funding
-We are grateful to the following for their funding and support of this project: Wellcome Trust, National Institute for Health and Care Research, National Brain Appeal.
+We are grateful to the Wellcome Trust, National Institute for Health and Care Research, and National Brain Appeal for their kind funding and support of this project.
 
 ### Enquiries
 Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk).
