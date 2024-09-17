@@ -1,22 +1,31 @@
 ### Musclesense 
+Musclesense is a trained neural network for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
+The following are currently supported: MRI sequences (3-point Dixon, T1w, T2-stir), platforms (Ubuntu), anatomical sites (calf, thigh).
 
-Musclesense is a trained neural network for the segmentation/parcellation of muscle MR images.
-
-The following MRI acquisitions are supported: 3-point Dixon, T1w, T2-stir
-
-### Examples
-
-![Screenshot from 2021-11-14 02-24-45](https://user-images.githubusercontent.com/12815964/141664991-b521a9a8-9287-4387-b9df-0d4917fe024a.png)
+### Example
+![image](https://github.com/user-attachments/assets/c3f6438c-c65e-4683-ac8d-024c4d83609f)
 
 ### Getting started
+Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases).
 
-Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases). Alternatively, you can download or clone the repository instead if you would like to test the latest development version. 
+As an example, run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory <test_dir>.
 
-Simply save and extract your download at a location of your choice on your computer. 
+```
+<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -modalities t1 -inputdir <test_dir> --multiclass
+```
 
-It is no longer necessary to download any model weights as these are automatically retrieved by the software as required.
+<test_dir> is expected to have the following directory structure:
 
-To run the the software, type ***./miniconda3/bin/python mmseg_ll.py -h*** from the installation directory
+```
+<test_dir>/
+├── subject1/
+│   └── t1.nii.gz
+├── subject2/
+│   └── t1.nii.gz
+```
+
+### Funding
+We are grateful to the Wellcome Trust, National Institute for Health and Care Research, and National Brain Appeal for their kind funding and support of this project.
 
 ### Enquiries
-Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk)
+Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk).
