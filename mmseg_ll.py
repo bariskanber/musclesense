@@ -41,15 +41,15 @@ modalities_dixon_345_460_575 = 'dixon_345_460_575'
 modalities_t1 = 't1'
 modalities_t2_stir = 't2_stir'
 
-available_modalities = [modalities_dixon_345_460_575, modalities_t1, modalities_t2_stir]
+available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_460_575]
 
 APPID = 'Musclesense'
-VERSION = '2.0.0'
+__version__ = '2.0.0'
 APPDESC = 'Multimodal, anatomical segmentation of muscle MR images'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
-print(f'{APPID} v{VERSION} - {APPDESC}')
+print(f'{APPID} v{__version__} - {APPDESC}')
 
 RUNTIME_PARAMS = {'smoketest': False, 'caution': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
 
@@ -128,17 +128,23 @@ def load_case_base(inputdir, DIR, multiclass, test):
     assert (len(TK) >= 2)
     ll = TK[0]
     DIR = TK[1]
+    t1w_patterns = [
+        os.path.join(DIR, 'nii/t1w_%s_dixon_space_*.nii*' % (ll)),
+    ]
+    t2stir_patterns = [
+        os.path.join(DIR, 'nii/stir_%s_dixon_space_*.nii*' % (ll)),
+    ]
 
     if RUNTIME_PARAMS['modalities']==modalities_t1:
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+            filename = get_fmf(t1w_patterns)
     elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
+            filename = get_fmf(t2stir_patterns)
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, '?ixon345.nii*'))
     else:
@@ -180,12 +186,12 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+            filename = get_fmf(t1w_patterns)
     elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
+            filename = get_fmf(t2stir_patterns)
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, '?ixon460.nii*'))
     else:
@@ -226,12 +232,12 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/t1w_%s_*.nii*'%(ll)))
+            filename = get_fmf(t1w_patterns)
     elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
         else:
-            filename = get_fmf(os.path.join(DIR, 'nii/stir_%s_*.nii*'%(ll)))
+            filename = get_fmf(t2stir_patterns)
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, '?ixon575.nii*'))
     else:
@@ -394,7 +400,6 @@ def load_case(inputdir, DIR, multiclass, test=False):
 
 
 def load_data(DIRS, test=False):
-    print('load_data() RUNTIME_PARAMS', RUNTIME_PARAMS)
     start_time = time.time()
     if len(DIRS) < 1:
         raise Exception('No data to load')
@@ -448,6 +453,7 @@ def extract_fatfractions(DIRS, maskimg):
         fout.write(f'case,slice,normalised_intlabel,normalised_strlabel,vol,mean_ff,std_ff\n')
 
     for diri in tqdm(range(len(DIRS)), leave=True, desc='Extracting fat fractions'):
+        if '^side' in DIRS[diri]: continue
         TK = DIRS[diri].split('^')
         assert (len(TK) == 3)
         ll = TK[0]
@@ -504,6 +510,8 @@ def read_and_normalize_data(DIRS, test=False):
         for slice in range(0, dixon_345img[imgi].shape[2]):
             mask_validity = valid_mask(scale_to_target(maskimg[imgi][:, :, slice]), DIR[imgi]+'^slice'+str(slice))
             TO_ADD = False
+            side = None
+            noise_slice = False
             if mask_validity == MaskValidity.valid:
                 TO_ADD = True
             elif mask_validity == MaskValidity.singlesided:
@@ -513,13 +521,18 @@ def read_and_normalize_data(DIRS, test=False):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][:half_size, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
+                    side = 1
                 elif valid_mask(scale_to_target(maskimg[imgi][half_size:, :, slice]), DIR[imgi]+'^slice'+str(slice)+'^side2') in [MaskValidity.valid, MaskValidity.singlesided]:
                     for img_it in (dixon_345img, dixon_460img, dixon_575img, maskimg):
                         img_it[imgi][:, :, slice] = scale_A_to_B(
                             img_it[imgi][half_size:, :, slice], img_it[imgi][:, :, slice])
                     TO_ADD = True
+                    side = 2
                 else:
-                    assert(False)
+                    assert (False)
+            elif False and DIR[imgi] == 'thigh^data/dhmn/gait_101' and slice in [0, 1, 92, 93, 94, 95]:
+                TO_ADD = True
+                noise_slice = True
             else:
                 TO_ADD = test
 
@@ -530,7 +543,9 @@ def read_and_normalize_data(DIRS, test=False):
                 dixon_575slice = scale_to_target(dixon_575img[imgi][:, :, slice])
 
                 if not RUNTIME_PARAMS['multiclass']:
-                    if test:
+                    if noise_slice:
+                        assert(np.array_equal(np.unique(maskslice), [0]))
+                    elif test:
                         assert(np.array_equal(np.unique(maskslice), [0, 1]) or np.array_equal(np.unique(maskslice), [0]))
                     else:
                         assert(np.array_equal(np.unique(maskslice), [0, 1]))
@@ -545,7 +560,9 @@ def read_and_normalize_data(DIRS, test=False):
                         valid_values2 = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
                         
                     ok=False
-                    if mask_validity==MaskValidity.singlesided:
+                    if noise_slice:
+                        if np.array_equal(np.unique(maskslice), [0]): ok = True
+                    elif mask_validity==MaskValidity.singlesided:
                         if (np.array_equal(np.unique(maskslice), valid_values1) or
                                 np.array_equal(np.unique(maskslice), valid_values2)):
                             ok = True
@@ -563,7 +580,7 @@ def read_and_normalize_data(DIRS, test=False):
                         if DEBUG: 
                             __str = f'DEBUG: np.unique(maskslice)={np.unique(maskslice)} for {DIR[imgi]}, slice={slice}, test={test}'
                             print(__str)
-                            with open('DEBUG_excluded_slices.csv','at') as fout:
+                            with open('__DEBUG/DEBUG_excluded_slices.csv','at') as fout:
                                 fout.write(f'{__str}\n')
                         continue
 
@@ -571,18 +588,20 @@ def read_and_normalize_data(DIRS, test=False):
                 dixon_345img_new.append(dixon_345slice)
                 dixon_460img_new.append(dixon_460slice)
                 dixon_575img_new.append(dixon_575slice)
-                DIR_text = DIR[imgi]+'^slice'+str(slice)
+                DIR_text = DIR[imgi] + '^slice' + str(slice)
+                if side is not None:
+                    DIR_text += '^side'+str(side)
                 DIR_new.append(DIR_text)
 
     if not test and len(DIR_new) != len(DIR):
         print('INFO: len(DIR_new)!=len(DIR)', len(DIR_new), len(DIR))
         
     if DEBUG:
-        with open('DEBUG_DIR.csv','wt') as fout:
+        with open('__DEBUG/DEBUG_DIR.csv','wt') as fout:
             for d in DIR:
                 fout.write(f'{d}\n')
 
-        with open('DEBUG_DIR_new.csv','wt') as fout:
+        with open('__DEBUG/DEBUG_DIR_new.csv','wt') as fout:
             for d in DIR_new:
                 fout.write(f'{d}\n')
 
@@ -640,14 +659,13 @@ def read_and_normalize_data(DIRS, test=False):
     return DIR, data, maskimg
 
 
-def MYNET():
+def MMSegNet():
     if RUNTIME_PARAMS['multiclass']:
-        activation = 'softmax'
+        activation = 'softmax' # softmax
         encoder_name='inceptionv4' # inceptionv4 - 41M
-        encoder_weights='imagenet+background' # imagenet
-        
+        encoder_weights='imagenet+background' # imagenet+background
     else:
-        activation = 'sigmoid'
+        activation = 'sigmoid' # sigmoid
         encoder_name='resnext50_32x4d' # resnext50_32x4d
         encoder_weights='imagenet' # imagenet
 
@@ -661,6 +679,14 @@ def MYNET():
         classes=RUNTIME_PARAMS['classes'],
         activation=activation
     )
+
+
+MMSegLoss_loss1 = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
+
+MMSegLoss_loss2 = smp.losses.SoftCrossEntropyLoss(smooth_factor=0.0)
+
+def MMSegLoss(y_pred, y_true):
+     return MMSegLoss_loss1.forward(y_pred, y_true) # + MMSegLoss_loss2.forward(y_pred, y_true)
 
 
 def calc_dice(test_id, test_mask, preds):
@@ -694,7 +720,7 @@ def calc_dice(test_id, test_mask, preds):
         DSCs.append(bestDSC)
         cutoffs.append(bestcutoff)
 
-        calc_dice_file = 'calc_dice_%s_%s.csv' % (RUNTIME_PARAMS['inputdir'].replace('/', '_'), RUNTIME_PARAMS['al'])
+        calc_dice_file = '__DEBUG/calc_dice_%s_%s.csv' % (RUNTIME_PARAMS['inputdir'].replace('/', '_'), RUNTIME_PARAMS['al'])
         if 'calc_dice_num_calls' not in RUNTIME_PARAMS:
             RUNTIME_PARAMS['calc_dice_num_calls'] = 0
             with open(calc_dice_file, 'wt') as outfile:
@@ -718,101 +744,70 @@ def calc_dice(test_id, test_mask, preds):
     return DSCs, cutoffs
 
 
-def print_scores(data, data_mask, preds, std_preds, test_id):
+def print_scores(data, data_mask, preds, std_preds, DIRs):
     print(data.shape, data.dtype)
     print(data_mask.shape, data_mask.dtype)
     print(preds.shape, preds.dtype)
-    print(len(test_id))
 
-    print('Saving results')
-    for i in range(0, preds.shape[0]):
-        DIR = test_id[i]
-        # DSCs,cutoffs=calc_dice(DIR,np.squeeze(data_mask[i]),preds[i])
-        # assert(len(DSCs) in [0,1])
-
-        # if len(DSCs)==1:
-        #    results_DSC_file='results_DSC_%s_%s.csv'%(RUNTIME_PARAMS['inputdir'].replace('/','_'),RUNTIME_PARAMS['al'])
-        #    if 'print_scores_num_calls' not in RUNTIME_PARAMS:
-        #        RUNTIME_PARAMS['print_scores_num_calls']=0
-        #        with open(results_DSC_file,'wt') as outfile:
-        #            outfile.write('id,DSC,best_cutoff\n')
-
-        #    RUNTIME_PARAMS['print_scores_num_calls']+=1
-        #    with open(results_DSC_file,'at') as outfile:
-        #        outfile.write('%s,%f,%f\n'%(DIR,DSCs[0],cutoffs[0]))
-
+    for i in tqdm(range(preds.shape[0]), leave=True, desc = 'Saving results'):
+        DIR = DIRs[i]
         TK = DIR.split('^')
         assert (len(TK) == 3)
         ll = TK[0]
         DIR = TK[1]
         slice = int(TK[2].replace('slice', ''))
 
-        tag = 'parcellation' if RUNTIME_PARAMS['multiclass'] else 'segmentation'
-        filename = "%s/%s_%s.nii.gz" % (DIR, ll, tag)
-        filename_std = "%s/%s_%s_var.nii.gz" % (DIR, ll, tag)
+        if RUNTIME_PARAMS['multiclass']:
+            dtype = np.uint8
+            filename = "%s/%s_parcellation_%s.nii.gz" % (DIR, ll, RUNTIME_PARAMS['modalities'])
+        else:
+            dtype = np.uint8
+            filename = "%s/%s_segmentation_%s.nii.gz" % (DIR, ll, RUNTIME_PARAMS['modalities'])
 
-        #if RUNTIME_PARAMS['caution']:
-        #    filename=filename.replace('.nii.gz','-caution.nii.gz')
-        #    filename_std=filename_std.replace('.nii.gz','-caution.nii.gz')
-            
         maskimg = None
-        maskimg_std = None
 
         if slice > 0:
             try:
                 nibobj = nib.load(filename)
-                maskimg = nibobj.get_fdata().astype(np.float32)
+                maskimg = nibobj.get_fdata().astype(dtype)
             except:
                 print('Could not load '+filename)
-            try:
-                nibobj_std = nib.load(filename_std)
-                maskimg_std = nibobj_std.get_fdata().astype(np.float32)
-            except:
-                print('Could not load '+filename_std)
 
-        if maskimg is None or maskimg_std is None:
+        if maskimg is None:
             if 'Amy_GOSH' in DIR:
-                ref_filename = glob.glob(os.path.join(DIR, '*DIXON_F.nii*'))[0]
+                ref_filename = get_fmf(os.path.join(DIR, '*DIXON_F.nii*'))
             elif RUNTIME_PARAMS['inputdir'] != 'train' and RUNTIME_PARAMS['inputdir'] != 'validate':
                 if RUNTIME_PARAMS['modalities']==modalities_t1:
-                    ref_filename = glob.glob(os.path.join(DIR, 't1.nii*'))[0]
+                    ref_filename = get_fmf(os.path.join(DIR, 't1.nii*'))
                 elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
-                    ref_filename = glob.glob(os.path.join(DIR, 't2_stir.nii*'))[0]
+                    ref_filename = get_fmf(os.path.join(DIR, 't2_stir.nii*'))
                 else:
-                    ref_filename = glob.glob(os.path.join(DIR, '?ixon345.nii*'))[0]
+                    ref_filename = get_fmf(os.path.join(DIR, '?ixon345.nii*'))
             else:
                 ref_filename = os.path.join(DIR, 'ana/fatfraction/'+ll+'/fat.nii.gz')
                 if not os.path.exists(ref_filename):
                     ref_filename = os.path.join(DIR, 'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
 
             nibobj = nib.load(ref_filename)
-            nibobj_std = nib.load(ref_filename)
             shape = nibobj.get_fdata().shape[0:3]
-            maskimg = np.zeros(shape, dtype=np.float32)
-            maskimg_std = np.zeros(shape, dtype=np.float32)
+            maskimg = np.zeros(shape, dtype=dtype)
 
         assert (slice >= 0)
         assert (slice < maskimg.shape[2])
 
         if RUNTIME_PARAMS['multiclass']:
-            axis = 0
-            assert (preds[i].shape[axis] == RUNTIME_PARAMS['classes'])
-            img_to_save = scale_to_size(np.argmax(preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
-            std_img_to_save = scale_to_size(np.argmax(std_preds[i], axis=axis), maskimg.shape[0], maskimg.shape[1])
+            assert (preds[i].shape[0] == RUNTIME_PARAMS['classes']) # preds[i] shape num_classes, W, H
+            img_to_save = scale_to_size(np.argmax(preds[i], axis=0), maskimg.shape[0], maskimg.shape[1])
         else:
-            img_to_save = scale_to_size(preds[i,0], maskimg.shape[0], maskimg.shape[1])
-            std_img_to_save = scale_to_size(std_preds[i,0], maskimg.shape[0], maskimg.shape[1])
+            img_to_save = scale_to_size(preds[i, 0], maskimg.shape[0], maskimg.shape[1])
+            img_to_save[img_to_save <= 0.5] = 0
+            img_to_save[img_to_save > 0.5] = 1
 
         maskimg[:, :, slice] = img_to_save
-        maskimg_std[:, :, slice] = std_img_to_save
 
         if DEBUG:
-            print('Saving '+filename+' (slice %d)' % (slice))
-        save_nifti(maskimg, nibobj.affine, nibobj.header, filename)
-
-        if DEBUG:
-            print('Saving '+filename_std+' (slice %d)' % (slice))
-        save_nifti(maskimg_std, nibobj_std.affine, nibobj_std.header, filename_std)
+            print('Saving ' + filename + ' (slice %d)' % (slice))
+        save_nifti(maskimg, nibobj.affine, None, filename)
 
 
 def saveTrainingMetrics(history, label, filename):
@@ -839,7 +834,7 @@ def saveTrainingMetrics(history, label, filename):
     plt.close(fig)
 
 
-def augmentData(batch_images, mask_images):
+def augmentData(batch_images, mask_images, DIR):
     for batchi in range(batch_images.shape[0]):
         TAG_augment_crop_and_resize = True
         if TAG_augment_crop_and_resize and np.random.randint(0, 2) == 0:
@@ -863,7 +858,34 @@ def augmentData(batch_images, mask_images):
                 plt.imshow(batch_images[batchi, 0, :, :], cmap='gray')
                 plt.subplot(224)
                 plt.imshow(mask_images[batchi, 0, :, :], cmap='gray')
-                plt.savefig('__sample_augment_crop_and_resize.png')
+                plt.savefig('__DEBUG/__sample_augment_crop_and_resize.png')
+                plt.close(fig)
+
+        TAG_augment_random_affine = False
+        if TAG_augment_random_affine and np.random.randint(0, 2) == 0:
+            if DEBUG or 1:
+                fig = plt.figure()
+                plt.subplot(221)
+                plt.imshow(batch_images[batchi, 0, :, :], cmap='gray')
+                plt.subplot(222)
+                plt.imshow(mask_images[batchi, 0,:,:], cmap='gray')
+
+            combined_volume = torch.cat([batch_images[batchi], mask_images[batchi]], dim=0)
+            fill = [0] * combined_volume.shape[0]
+            fill[batch_images.shape[1]] = 1 # fill with background in one-hot
+
+            raff = tt.RandomAffine(5, translate=(0.1, 0.1), scale=(0.9, 0.9), shear=(2, 2, 2, 2), interpolation=tt.InterpolationMode.NEAREST, fill=fill, center=(combined_volume.shape[1] // 2, combined_volume.shape[2] // 2))
+            
+            combined_volume = raff.forward(combined_volume)
+            
+            batch_images[batchi] = combined_volume[:3]
+            mask_images[batchi] = combined_volume[3:]
+            if DEBUG or 1:
+                plt.subplot(223)
+                plt.imshow(batch_images[batchi, 0, :, :], cmap='gray')
+                plt.subplot(224)
+                plt.imshow(mask_images[batchi, 0, :, :], cmap='gray')
+                plt.savefig('__DEBUG/__sample_augment_random_affine.png')
                 plt.close(fig)
 
         # did not work/help: rot90(k=2), flip_left_right, flip_up_down (would invalidate L/R orientation)
@@ -872,9 +894,10 @@ def augmentData(batch_images, mask_images):
 
 
 class MMSegDataset(Dataset):
-    def __init__(self, images, masks):
+    def __init__(self, images, masks, DIR):
         self.images = images
         self.masks = masks
+        self.DIR = DIR
 
     def __len__(self):
         return self.images.shape[0]
@@ -882,7 +905,8 @@ class MMSegDataset(Dataset):
     def __getitem__(self, index):
         return {
             'image': np.transpose(self.images[index], (2, 0, 1)),
-            'mask': np.transpose(self.masks[index], (2, 0, 1))
+            'mask': np.transpose(self.masks[index], (2, 0, 1)),
+            'DIR': self.DIR[index]
         }
 
 
@@ -905,8 +929,10 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             print('outer fold', RUNTIME_PARAMS['outerfold']+1, 'inner fold', fold+1)
 
         X_train_this, y_train_this = train_data[train_index], train_maskimg[train_index]
+        DIR_train_this = list(np.array(train_DIR)[train_index])
+
         X_valid_this, y_valid_this = train_data[valid_index], train_maskimg[valid_index]
-        DIR_valid = list(np.array(train_DIR)[valid_index])
+        DIR_valid_this = list(np.array(train_DIR)[valid_index])
 
         print('X_train_this', X_train_this.shape, X_train_this.dtype)
         print('X_valid_this', X_valid_this.shape, X_valid_this.dtype)
@@ -928,28 +954,33 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                 np.squeeze(y_valid_this, axis=3)), RUNTIME_PARAMS['classes'])
 
         train_dataloader = DataLoader(
-            MMSegDataset(X_train_this, y_train_this),
+            MMSegDataset(X_train_this, y_train_this, DIR_train_this),
             batch_size=RUNTIME_PARAMS['batch_size'],
             shuffle=True,
             num_workers=0
         )
 
         valid_dataloader = DataLoader(
-            MMSegDataset(X_valid_this, y_valid_this),
+            MMSegDataset(X_valid_this, y_valid_this, DIR_valid_this),
             batch_size=RUNTIME_PARAMS['batch_size'],
             shuffle=False,
             num_workers=0
         )
 
+        model = MMSegNet()
+
         device = RUNTIME_PARAMS['device']
-        model = MYNET().to(device)
+        model = model.to(device)
+
+        if False and RUNTIME_PARAMS['al'] == 'thigh':
+            if RUNTIME_PARAMS['multiclass']:
+                encoder_weights = 'inceptionv4-mmseg-calf.pth'
+            else:
+                encoder_weights = 'resnext50_32x4d-mmseg-calf.pth'
+            model.encoder.load_state_dict(torch.load('/home/bkanber/pretrainedmodels/' + encoder_weights, weights_only=True))
+
         optimiser = torch.optim.Adam(model.parameters(), lr=RUNTIME_PARAMS['lr'])
         # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=1, gamma=0.8)
-
-        def MMSegLoss(y_pred, y_true):
-            loss1 = smp.losses.DiceLoss(smp.losses.MULTILABEL_MODE, from_logits=False)
-            # loss2 = smp.losses.SoftCrossEntropyLoss(smooth_factor=0.0)
-            return loss1.forward(y_pred, y_true)  # + loss2.forward(y_pred, y_true)
 
         loss_fn = MMSegLoss
         history = {'loss': [], 'val_loss': [], 'acc': [], 'val_acc': []}
@@ -961,7 +992,7 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             accs_this_epoch = []
             with torch.set_grad_enabled(True):
                 for data in tqdm(train_dataloader, leave=False, desc='Training'):
-                    image, mask = augmentData(data['image'], data['mask'])
+                    image, mask = augmentData(data['image'], data['mask'], data['DIR'])
                     image = image.to(device)
                     mask = mask.to(device)
                     optimiser.zero_grad()
@@ -1101,12 +1132,14 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
 
 
 def test(test_DIRS):
-    print('test', test_DIRS)
-    print('RUNTIME_PARAMS', RUNTIME_PARAMS)
+    if DEBUG:
+        print('Testing', test_DIRS)
+    if DEBUG:
+        print('RUNTIME_PARAMS', RUNTIME_PARAMS)
     test_DIR, test_data, test_maskimg = read_and_normalize_data(test_DIRS, True)
     
     device = RUNTIME_PARAMS['device']
-    model = MYNET().to(device)
+    model = MMSegNet().to(device)
     for fold in range(5):
         weightsfile = 'models/full.%d.%s.%s.%s.model' % (
             fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary',
@@ -1118,21 +1151,14 @@ def test(test_DIRS):
             continue
             msg = 'Downloading '+os.path.basename(weightsfile)
             print(msg)
-            if RUNTIME_PARAMS['widget'] is not None:
-                RUNTIME_PARAMS['widget']['text'] = msg
-                RUNTIME_PARAMS['widget'].update()
             url = "https://github.com/bariskanber/musclesenseworkbench/releases/download/r1/%s" % (
                 os.path.basename(weightsfile))
             urllib.request.urlretrieve(url, weightsfile)
 
-        if RUNTIME_PARAMS['widget'] is not None:
-            RUNTIME_PARAMS['widget']['text'] = 'Calculating mask (%.0f%%)...' % (100*float(fold+1)/5)
-            RUNTIME_PARAMS['widget'].update()
-
-        model.load_state_dict(torch.load(weightsfile,map_location=device))
+        model.load_state_dict(torch.load(weightsfile,map_location=device,weights_only=True))
 
         test_dataloader = DataLoader(
-            MMSegDataset(test_data, test_maskimg),
+            MMSegDataset(test_data, test_maskimg, test_DIR),
             batch_size=RUNTIME_PARAMS['batch_size'],
             shuffle=False,
             num_workers=0
@@ -1156,16 +1182,14 @@ def test(test_DIRS):
         else:
             preds = np.concatenate((preds, p), axis=0)
 
+    print(test_maskimg.shape) # (173, 320, 160, 1) 
+    print(preds.shape) # (n_splits, 173, num_classes, 320, 160)
+
     mean_preds = np.nanmean(preds, axis=0)
     std_preds = np.nanstd(preds, axis=0)
-
-    print(test_maskimg.shape)
-    print(mean_preds.shape)
     
     #DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
     print_scores(test_data, test_maskimg, mean_preds, std_preds, test_DIR)
-    #return DSCs
-    return None
 
 def main(al, inputdir, modalities, multiclass, widget):
     RUNTIME_PARAMS['al'] = al
@@ -1174,21 +1198,13 @@ def main(al, inputdir, modalities, multiclass, widget):
     RUNTIME_PARAMS['widget'] = widget
     RUNTIME_PARAMS['multiclass'] = multiclass  # individual muscle segmentation (vs. whole muscle)
 
-    if RUNTIME_PARAMS['widget'] is not None:
-        RUNTIME_PARAMS['widget']['text'] = 'Calculating mask...'
-        RUNTIME_PARAMS['widget'].update()
-
-    RUNTIME_PARAMS['device'] = None
-    if torch.cuda.is_available():
+    if not torch.cuda.is_available(): RUNTIME_PARAMS['device'] = None
+    else:
         pynvml.nvmlInit()
-        h = pynvml.nvmlDeviceGetHandleByIndex(0)
-        info = pynvml.nvmlDeviceGetMemoryInfo(h)
-        gb = 1024.0*1024*1024
-        #print(f'total    : {info.total/gb}')
-        #print(f'free     : {info.free/gb}')
-        #print(f'used     : {info.used/gb}')   
-        if info.free/gb<4:
+        info = pynvml.nvmlDeviceGetMemoryInfo(pynvml.nvmlDeviceGetHandleByIndex(0))
+        if info.free / (1024.0 ** 3) < 4:
             print('CUDA is low on memory')
+            RUNTIME_PARAMS['device'] = None
         else:
             RUNTIME_PARAMS['device'] = torch.device('cuda:0')
 
@@ -1231,17 +1247,13 @@ def main(al, inputdir, modalities, multiclass, widget):
                 #    continue
                 
                 if RUNTIME_PARAMS['modalities']==modalities_t1:
-                    files = glob.glob(os.path.join(de, 'nii/t1w_%s_*.nii*'%(ll)))
-                    if len(files)==0:
-                        files = glob.glob(os.path.join(de, 'nii/*-T1_*_%s.nii.gz'%(llshortdict[ll].upper())))
+                    files = glob.glob(os.path.join(de, 'nii/t1w_%s_dixon_space_*.nii*'%(ll)))
                     if len(files)==0: 
                         if DEBUG:
                             print(de+' does not have a T1 image')
                         continue                
                 elif RUNTIME_PARAMS['modalities']==modalities_t2_stir:
-                    files = glob.glob(os.path.join(de, 'nii/stir_%s_*.nii*'%(ll)))
-                    if len(files)==0:
-                        files = glob.glob(os.path.join(de, 'nii/*_STIR_%s.nii.gz'%(llshortdict[ll].upper())))
+                    files = glob.glob(os.path.join(de, 'nii/stir_%s_dixon_space_*.nii*'%(ll)))
                     if len(files)==0:                
                         if DEBUG:
                             print(de+' does not have a STIR image')
@@ -1377,25 +1389,39 @@ def main(al, inputdir, modalities, multiclass, widget):
                 DIRS.append(ll+'^'+de)
 
         if len(DIRS) == 0:
-            DIRS.append(ll+'^'+RUNTIME_PARAMS['inputdir'])
+            if not os.path.isdir(RUNTIME_PARAMS['inputdir']):
+                print(f'Input directory {RUNTIME_PARAMS["inputdir"]} not found')
+            else:
+                DIRS.append(ll+'^'+RUNTIME_PARAMS['inputdir'])
 
-        print(DIRS)
-        print('%d cases found' % (len(DIRS)))
+        if RUNTIME_PARAMS['al'] == 'thigh' and RUNTIME_PARAMS['modalities'] in [modalities_t1, modalities_t2_stir]:
+            if 'thigh^test_cases/thigh/dhmn-gait_111' in DIRS:
+                DIRS.remove('thigh^test_cases/thigh/dhmn-gait_111') # has not T1/T2_stir for the thigh
 
-        DIRS = np.array(DIRS)
-        DSCarray = test(DIRS)
+        print('%d case(s) found' % (len(DIRS)))
+        if len(DIRS) > 0:
+            DIRS = np.array(DIRS)
+            test(DIRS)
 
-    print('Running time: {} hours'.format(round((time.time() - start_time)/3600.0, 1)))
+    if (time.time() - start_time)/3600.0 >= 1.0:
+        print('Running time: {} hour(s)'.format(round((time.time() - start_time)/3600.0, 1)))
+    elif (time.time() - start_time)/60.0 >= 1.0:
+        print('Running time: {} minute(s)'.format(round((time.time() - start_time)/60.0, 1)))
+    else:
+        print('Running time: {} second(s)'.format(round(time.time() - start_time, 1)))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("mmseg_ll")
-    parser.add_argument('-al', type=str, help='anatomical location (%s)'%('/'.join(llshortdict.keys())))
+    parser.add_argument('-al', type=str, help='anatomical location (one of %s, first is default)'%('/'.join(llshortdict.keys())))
     parser.add_argument('-inputdir', type=str, help='input directory/folder (or train/validate)')
-    parser.add_argument('-modalities', type=str, help='input modalities (%s)'%('/'.join(available_modalities)), default=available_modalities[0])
-    parser.add_argument('--multiclass', action="store_true", help='individual muscle segmentation (default is whole muscle)')
-    parser.add_argument('--debug', action="store_true", help='DEBUG/verbose mode')
-    parser.add_argument('--version', action='version', version='1.1.0')
+    parser.add_argument('-modalities', type=str, help='input modalities (one of %s, first is default)'%('/'.join(available_modalities)), default=available_modalities[0])
+    parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default is individual muscle segmentation)')
+    parser.add_argument('--smoketest', action='store_true', help='smoke test (internal use only)')
+    parser.add_argument('--debug', action='store_true', help='debug mode (internal use only)')
+    parser.add_argument('--version', action='version', version=__version__)
     args = parser.parse_args()
+    
+    RUNTIME_PARAMS['smoketest'] = args.smoketest
     DEBUG = args.debug
 
     if args.inputdir is None or args.al not in llshortdict.keys() or args.modalities not in available_modalities:
@@ -1403,7 +1429,7 @@ if __name__ == '__main__':
         sys.exit(1)
         
     if DEBUG:
-        if os.path.exists('DEBUG_excluded_slices.csv'): os.remove('DEBUG_excluded_slices.csv')
+        if os.path.exists('__DEBUG/DEBUG_excluded_slices.csv'): os.remove('__DEBUG/DEBUG_excluded_slices.csv')
 
-    main(args.al, args.inputdir, args.modalities, args.multiclass, widget=None)
+    main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
     
