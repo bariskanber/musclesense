@@ -5,15 +5,15 @@ Musclesense is a trained neural network for the anatomical segmentation of muscl
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
 
 ## Installation
-The instructions below are for the Linux OS. Please replace ```<INSTALL_DIR>``` with the path to the folder you wish to install the software.
+The instructions below are for the Linux. Please replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
 
 * Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense.
 
-* Extract the zip file in ```<INSTALL_DIR>```.
+* Extract the zip file in ```~/musclesense```.
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) for your OS in ```<INSTALL_DIR>/miniconda3```. Please note that Musclesense requires Python version > 3.12.
+* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3```. Please note that Musclesense requires Python version > 3.12.
 
-* Install the required Python modules by running ```<INSTALL_DIR>/miniconda3/bin/python -m pip install -r <INSTALL_DIR>/requirements.txt```
+* Install the required Python modules by running ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
 
 ## Getting started
 
@@ -21,7 +21,7 @@ The instructions below are for the Linux OS. Please replace ```<INSTALL_DIR>``` 
 Run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory <test_dir>.
 
 ```
-<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -modalities t1 -inputdir <test_dir>
+~/musclesense/miniconda3/bin/python mmseg_ll.py -al calf -modalities t1 -inputdir <test_dir>
 ```
 
 <test_dir> is expected to have the following directory structure:
@@ -40,7 +40,7 @@ A file labelled calf_parcellation_t1.nii.gz will be produced in each subject dir
 Run the following command to perform whole muscle segmentation on the two T2-stir thigh datasets in the directory <test_dir2>.
 
 ```
-<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al thigh -modalities t2_stir -inputdir <test_dir2> --wholemuscle
+~/musclesense/miniconda3/bin/python mmseg_ll.py -al thigh -modalities t2_stir -inputdir <test_dir2> --wholemuscle
 ```
 
 <test_dir2> is expected to have the following directory structure:
@@ -59,7 +59,7 @@ A file labelled thigh_segmentation_t2_stir.nii.gz will be produced in each subje
 Run the following command to perform individual muscle segmentation on the two 3-point Dixon calf datasets in the directory <test_dir3>.
 
 ```
-<INSTALL_DIR>/miniconda3/bin/python mmseg_ll.py -al calf -modalities dixon_345_460_575 -inputdir <test_dir3>
+~/musclesense/miniconda3/bin/python mmseg_ll.py -al calf -modalities dixon_345_460_575 -inputdir <test_dir3>
 ```
 
 <test_dir3> is expected to have the following directory structure:
