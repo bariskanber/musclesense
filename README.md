@@ -1,22 +1,17 @@
 ## Musclesense 
-Musclesense is a trained neural network for the anatomical segmentation of muscles in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
+Musclesense is a trained neural network for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
 
 ## Example
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
 
 ## Installation
-The instructions below are for the Linux and install the software at ```~/musclesense```. Replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
+The instructions below are for Linux and for installing the software at ```~/musclesense```. Replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
 
-* Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense.
+* Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense and extract the zip file in ```~/musclesense```.
 
-* Extract the zip file in ```~/musclesense```.
+* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3```.
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3```. Please note that Musclesense requires Python version > 3.12.
-
-* Install the required Python modules by running:
-```
-~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt
-```
+* Install the required modules by running: ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
 
 ## Getting started
 
@@ -84,9 +79,9 @@ A file labelled calf_parcellation_dixon_345_460_575.nii.gz will be produced in e
 #### Funding
 We are grateful to the Wellcome Trust, National Institute for Health and Care Research, and National Brain Appeal for their kind funding and support of this project.
 
-Please consider citing the following publications if you use this software in your research:
-* Musclesense: a trained, artificial neural network for the anatomical segmentation of lower limb magnetic resonance images in neuromuscular diseases (Kanber et al., 2021).
-* Quantitative MRI outcome measures in CMT1A using automated lower limb muscle segmentation (O'Donnell et al., 2024).
-
+Please consider citing the following publications if you use Musclesense in your research:
+* Musclesense: a trained, artificial neural network for the anatomical segmentation of lower limb magnetic resonance images in neuromuscular diseases (https://pubmed.ncbi.nlm.nih.gov/32892313/)
+* Quantitative MRI outcome measures in CMT1A using automated lower limb muscle segmentation (https://pubmed.ncbi.nlm.nih.gov/37979968/)
+  
 #### Enquiries
 Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk).
