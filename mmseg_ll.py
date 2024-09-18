@@ -659,7 +659,7 @@ def read_and_normalize_data(DIRS, test=False):
     return DIR, data, maskimg
 
 
-def MMSegNet():
+def MMSegNet(load_encoder_weights: bool):
     if RUNTIME_PARAMS['multiclass']:
         activation = 'softmax' # softmax
         encoder_name='inceptionv4' # inceptionv4 - 41M
@@ -668,6 +668,8 @@ def MMSegNet():
         activation = 'sigmoid' # sigmoid
         encoder_name='resnext50_32x4d' # resnext50_32x4d
         encoder_weights='imagenet' # imagenet
+
+    if not load_encoder_weights: encoder_weights = None
 
     return smp.Unet(
         encoder_name=encoder_name,
@@ -967,10 +969,8 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
             num_workers=0
         )
 
-        model = MMSegNet()
-
         device = RUNTIME_PARAMS['device']
-        model = model.to(device)
+        model = MMSegNet(load_encoder_weights = True).to(device)
 
         if False and RUNTIME_PARAMS['al'] == 'thigh':
             if RUNTIME_PARAMS['multiclass']:
@@ -1139,7 +1139,7 @@ def test(test_DIRS):
     test_DIR, test_data, test_maskimg = read_and_normalize_data(test_DIRS, True)
     
     device = RUNTIME_PARAMS['device']
-    model = MMSegNet().to(device)
+    model = MMSegNet(load_encoder_weights = False).to(device)
     for fold in range(5):
         weightsfile = 'models/full.%d.%s.%s.%s.model' % (
             fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary',
