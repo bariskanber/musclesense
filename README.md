@@ -81,5 +81,9 @@ A file labelled calf_parcellation_dixon_345_460_575.nii.gz will be produced in e
 #### Funding
 We are grateful to the Wellcome Trust, National Institute for Health and Care Research, and National Brain Appeal for their kind funding and support of this project.
 
+Please consider citing the following publications if you use this software in your research:
+* Musclesense: a trained, artificial neural network for the anatomical segmentation of lower limb magnetic resonance images in neuromuscular diseases (Kanber et al., 2021).
+* Quantitative MRI outcome measures in CMT1A using automated lower limb muscle segmentation (O'Donnell et al., 2024).
+
 #### Enquiries
 Please submit any enquiries [here](mailto:b.kanber@ucl.ac.uk).
