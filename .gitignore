@@ -19,4 +19,3 @@ slurm*.out
 *.sh
 *.log
 *.txt
-+.gitignore
