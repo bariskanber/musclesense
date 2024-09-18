@@ -11,7 +11,7 @@ The instructions below are for the Linux OS. Please replace ```<INSTALL_DIR>``` 
 
 * Extract the zip file in ```<INSTALL_DIR>```.
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) for Linux in ```<INSTALL_DIR>/miniconda3```. Please note that Musclesense requires Python version > 3.12.
+* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) for your OS in ```<INSTALL_DIR>/miniconda3```. Please note that Musclesense requires Python version > 3.12.
 
 * Install the required Python modules by running ```<INSTALL_DIR>/miniconda3/bin/python -m pip install -r <INSTALL_DIR>/requirements.txt```
 
