@@ -27,7 +27,7 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
     if not os.path.isdir(t1t2stir):
         raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
     
-    keywords = ['stir','STIR']
+    keywords = ['stir','STIR','Stir']
     #keywords = ['t1w','t1_tse','T1_TSE']
     
     for keyword in keywords:
