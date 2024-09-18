@@ -5,7 +5,7 @@ Musclesense is a trained neural network for the anatomical segmentation of muscl
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
 
 ## Installation
-The instructions below are for the Linux. Please replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
+The instructions below are for the Linux and install the software at ```~/musclesense```. Please replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
 
 * Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense.
 
