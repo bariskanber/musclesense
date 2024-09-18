@@ -7,16 +7,11 @@ Musclesense is a trained neural network for the anatomical segmentation of muscl
 ## Installation
 The instructions below are for the Linux and install the software at ```~/musclesense```. Replace ```~/musclesense``` with another path if you wish to install the software elsewhere on your filesystem.
 
-* Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense.
+* Download the latest [release version](https://github.com/bariskanber/musclesenseworkbench/releases) of Musclesense and extract the zip file in ```~/musclesense```.
 
-* Extract the zip file in ```~/musclesense```.
+* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3```.
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3```. Please note that Musclesense requires Python version > 3.12.
-
-* Install the required Python modules by running:
-```
-~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt
-```
+* Install the required Python modules by running: ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
 
 ## Getting started
 
