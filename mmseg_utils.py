@@ -1,5 +1,4 @@
-import sys
-from pathlib import Path
+import glob
 import numpy as np
 from scipy import ndimage as nd
 
@@ -54,12 +53,7 @@ def get_fmf(pattern: str, case_sensitive = False) -> str:
     if type(pattern) is str: pattern = [pattern]
     
     for p in pattern:
-        if (sys.version_info.major==3 and sys.version_info.minor>=12) or sys.version_info.major>3:
-            files = [*Path.cwd().glob(p, case_sensitive=case_sensitive)]
-        else:
-            print('WARNING: Python version is < 3.12')
-            files = [*Path.cwd().glob(p)]
-
+        files = glob.glob(p)
         if len(files) > 0:
             return str(files[0])
 
