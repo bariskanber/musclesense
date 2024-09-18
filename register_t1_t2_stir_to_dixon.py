@@ -18,6 +18,8 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
         t1t2stir = 'data/brcalskd_t1_t2_stir/' + filename.replace('data/brcalskd/','')
     elif filename.startswith('data/hypopp/'):
         t1t2stir = 'data/hypopp_t1_t2_stir/' + filename.replace('data/hypopp/','')
+    elif filename.startswith('data/mdacmt/') or filename.startswith('data/poems/') or filename.startswith('data/alscs/') or filename.startswith('data/arimoclomol/') or filename.startswith('data/dhmn/'):
+        t1t2stir = filename
     else:
         raise Exception('Unexpected condition')
     
@@ -25,15 +27,16 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
     if not os.path.isdir(t1t2stir):
         raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
     
-    #keywords = ['stir','STIR']
-    keywords = ['t1w','t1_tse']
+    keywords = ['stir','STIR']
+    #keywords = ['t1w','t1_tse','T1_TSE']
     
     for keyword in keywords:
         dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,ll))
-        if len(dirlist)==0:
-            dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll]))
-        else:
-            break
+        if len(dirlist) > 0: break
+        dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll]))
+        if len(dirlist) > 0: break
+        dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,llshortdict[ll].upper()))
+        if len(dirlist) > 0: break
     
     if len(dirlist)==0:
         if 'stir' in keywords and ll=='calf' and t1t2stir in ['data/brcalskd_t1_t2_stir/BRCALSKD_003A/nii',
@@ -47,16 +50,20 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
                         ]:
             pass
         else:
-            raise Exception('No %s found in %s'%(keywords,t1t2stir))
+            print('No %s found in %s' % (keywords, t1t2stir))
+            with open('__DEBUG/DEBUG_register_t1_t2_stir_to_dixon.log', 'at') as logfile:
+                logfile.write('No %s found in %s\n' % (keywords, t1t2stir))
+            return
         
     for toreg in dirlist:
+        if '_dixon_space_' in toreg: continue
         print('Register '+toreg+' to '+filename)
         outputnii = os.path.join(os.path.dirname(filename),'%s_%s_dixon_space_%s'%(keywords[0],ll,os.path.basename(toreg)))
         print('outputnii',outputnii)
         if os.path.exists(outputnii):
             print('Aready done')
             continue
-        cmd = 'reg_aladin -ref %s -flo %s -aff %s -res %s -omp 4'%(filename, toreg ,outputnii.replace('.nii.gz','_affine.txt'), outputnii)
+        cmd = 'reg_aladin -ref %s -flo %s -aff %s -res %s -affDirect -iso -omp 4'%(filename, toreg ,outputnii.replace('.nii.gz','_affine.txt'), outputnii)
         print(cmd)
         import subprocess
         status,output = subprocess.getstatusoutput(cmd)
