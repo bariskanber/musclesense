@@ -1150,6 +1150,8 @@ def test(test_DIRS):
         if not os.path.exists(weightsfile):
             msg = 'Downloading '+os.path.basename(weightsfile)
             print(msg)
+            if not os.path.exists(os.path.join(INSTALL_DIR, 'models')):
+                os.mkdir(os.path.join(INSTALL_DIR, 'models'))
             url = "https://github.com/bariskanber/musclesense/releases/download/v%s/%s" % (__version__,
                 os.path.basename(weightsfile))
             urllib.request.urlretrieve(url, weightsfile)
