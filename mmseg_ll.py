@@ -1150,7 +1150,7 @@ def test(test_DIRS):
         if not os.path.exists(weightsfile):
             msg = 'Downloading '+os.path.basename(weightsfile)
             print(msg)
-            url = "https://github.com/bariskanber/musclesenseworkbench/releases/download/v%s/%s" % (__version__,
+            url = "https://github.com/bariskanber/musclesense/releases/download/v%s/%s" % (__version__,
                 os.path.basename(weightsfile))
             urllib.request.urlretrieve(url, weightsfile)
 
