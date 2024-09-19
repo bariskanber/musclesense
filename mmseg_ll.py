@@ -1148,10 +1148,9 @@ def test(test_DIRS):
         weightsfile = os.path.join(INSTALL_DIR, weightsfile)
 
         if not os.path.exists(weightsfile):
-            continue
             msg = 'Downloading '+os.path.basename(weightsfile)
             print(msg)
-            url = "https://github.com/bariskanber/musclesenseworkbench/releases/download/r1/%s" % (
+            url = "https://github.com/bariskanber/musclesenseworkbench/releases/download/v%s/%s" % (__version__,
                 os.path.basename(weightsfile))
             urllib.request.urlretrieve(url, weightsfile)
 
