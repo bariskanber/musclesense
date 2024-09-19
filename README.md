@@ -9,7 +9,7 @@ The instructions below are for installing the software at ```~/musclesense``` on
 
 * Run ```cd ~``` followed by ```git clone https://github.com/bariskanber/musclesense.git```
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3``` (the installation script will ask for a location)
+* Install [miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3``` (the installation script will ask for a location)
 
 * Install the required modules by running: ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
 
