@@ -45,7 +45,7 @@ available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_
 
 APPID = 'Musclesense'
 __version__ = '2.0.0'
-APPDESC = 'Multimodal, anatomical segmentation of muscle MR images'
+APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -1412,10 +1412,10 @@ def main(al, inputdir, modalities, multiclass, widget):
         print('Running time: {} second(s)'.format(round(time.time() - start_time, 1)))
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("mmseg_ll")
-    parser.add_argument('-al', type=str, help='anatomical location (one of %s, first is default)'%('/'.join(llshortdict.keys())))
-    parser.add_argument('-inputdir', type=str, help='input directory/folder (or train/validate)')
-    parser.add_argument('-modalities', type=str, help='input modalities (one of %s, first is default)'%('/'.join(available_modalities)), default=available_modalities[0])
+    parser = argparse.ArgumentParser(APPID)
+    parser.add_argument('-al', type=str, help='anatomical location (one of %s)'%(', '.join(llshortdict.keys())))
+    parser.add_argument('-inputdir', type=str, help='input directory')
+    parser.add_argument('-modalities', type=str, help='input modalities (one of %s)'%(', '.join(available_modalities)))
     parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default is individual muscle segmentation)')
     parser.add_argument('--smoketest', action='store_true', help='smoke test (internal use only)')
     parser.add_argument('--debug', action='store_true', help='debug mode (internal use only)')
@@ -1431,6 +1431,8 @@ if __name__ == '__main__':
         
     if DEBUG:
         if os.path.exists('__DEBUG/DEBUG_excluded_slices.csv'): os.remove('__DEBUG/DEBUG_excluded_slices.csv')
+        if not os.path.exists(os.path.join(INSTALL_DIR, '__DEBUG')):
+                os.mkdir(os.path.join(INSTALL_DIR, '__DEBUG'))
 
     main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
     
