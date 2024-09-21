@@ -1,5 +1,5 @@
 ## Musclesense 
-Musclesense is a trained neural network for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
+Musclesense comprises a set of trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes. 
 
 ## Example
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
@@ -9,7 +9,7 @@ The instructions below are for installing the software at ```~/musclesense``` on
 
 * Run ```cd ~``` followed by ```git clone https://github.com/bariskanber/musclesense.git```
 
-* Install [Miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3``` (the installation script will ask for a location)
+* Install [miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3``` (the installation script will ask for a location)
 
 * Install the required modules by running: ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
 
