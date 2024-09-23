@@ -1057,19 +1057,27 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
                 fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
                 RUNTIME_PARAMS['modalities']
                 )
+
+            if not os.path.exists(os.path.join(INSTALL_DIR, 'models')):
+                os.mkdir(os.path.join(INSTALL_DIR, 'models'))
+
             torch.save(best_epoch_state_dict, modelfilename)
-            trainingMetricsFilename = 'full.%d.%s.%s.%s.%s.pdf' % (
+
+            trainingMetricsFilename = 'metrics/full.%d.%s.%s.%s.%s.pdf' % (
                 fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
                 RUNTIME_PARAMS['modalities'], RUNTIME_PARAMS['inputdir']
                 )
         else:
-            trainingMetricsFilename = 'full.%d.%d.%s.%s.%s.%s.pdf' % (
+            trainingMetricsFilename = 'metrics/full.%d.%d.%s.%s.%s.%s.pdf' % (
                 RUNTIME_PARAMS['outerfold'], 
                 fold, RUNTIME_PARAMS['al'], 'multiclass' if RUNTIME_PARAMS['multiclass'] else 'binary', 
                 RUNTIME_PARAMS['modalities'], RUNTIME_PARAMS['inputdir']
                 )
 
-        saveTrainingMetrics(history, trainingMetricsFilename, os.path.join('metrics',trainingMetricsFilename))
+        if not os.path.exists(os.path.join(INSTALL_DIR, 'metrics')):
+            os.mkdir(os.path.join(INSTALL_DIR, 'metrics'))
+
+        saveTrainingMetrics(history, trainingMetricsFilename, trainingMetricsFilename)
 
         best_epoch_val_acc = history['val_acc'][best_epoch]
         best_epoch_val_loss = history['val_loss'][best_epoch]
