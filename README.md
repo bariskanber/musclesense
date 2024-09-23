@@ -7,11 +7,22 @@ Musclesense comprises a set of trained neural networks for the anatomical segmen
 ## Installation
 The instructions below are for installing the software at ```~/musclesense``` on Linux. Replace ```~``` and ```musclesense``` as appropriate if you wish to install the software elsewhere on your filesystem.
 
-* Run ```cd ~``` followed by ```git clone https://github.com/bariskanber/musclesense.git```
+* At the Linux terminal, execute:
+  ```
+  cd ~
+  ```
+
+  followed by:
+  ```
+  git clone https://github.com/bariskanber/musclesense.git
+  ```
 
 * Install [miniconda](https://docs.anaconda.com/miniconda/miniconda-install) in ```~/musclesense/miniconda3``` (the installation script will ask for a location)
 
-* Install the required modules by running: ```~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt```
+* Install the required modules by running:
+  ```
+  ~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt
+  ```
 
 Please note that if the location you are installating the software to requires ```sudo``` to write to, you may need to run the software using ```sudo``` so that the software can download the model files it needs. You will know this is the case if you encouter a ```Permission denied: '.../models'``` error. Using ```sudo``` should only be necessary once for each new modality you use and will no longer be required once the appropriate model files have been downloaded.
 
