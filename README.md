@@ -24,9 +24,10 @@ The instructions below are for installing the software at ```~/musclesense``` on
   ~/musclesense/miniconda3/bin/python -m pip install -r ~/musclesense/requirements.txt
   ```
 
-Please note that if the location you are installating the software to requires ```sudo``` to write to, you may need to run the software using ```sudo``` so that the software can download the model files it needs. You will know this is the case if you encouter a ```Permission denied: '.../models'``` error. Using ```sudo``` should only be necessary once for each new modality you use and will no longer be required once the appropriate model files have been downloaded.
-
 ## Getting started
+
+Please note that if the location you have installed the software to requires root privileges to write to, you may encouter a ```Permission denied: '.../models'``` error. Run the software with ```sudo``` once for each new modality you use and ```sudo``` will no longer be necessary once the appropriate model files have been downloaded.
+
 
 ### Example 1
 Run the following command to perform individual muscle segmentation on the two T1w calf datasets in the directory /mydir.
