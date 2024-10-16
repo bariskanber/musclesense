@@ -44,7 +44,7 @@ modalities_t2_stir = 't2_stir'
 available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_460_575]
 
 APPID = 'Musclesense'
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
