@@ -6,7 +6,7 @@ metrics/
 miniconda3*/
 models/
 __pycache__/
-test_cases*/
+*test*
 tmp*
 temp*
 *~

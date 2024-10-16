@@ -746,7 +746,7 @@ def calc_dice(test_id, test_mask, preds):
     return DSCs, cutoffs
 
 
-def print_scores(data, data_mask, preds, std_preds, DIRs):
+def print_scores(data, data_mask, preds, DIRs):
     print(data.shape, data.dtype)
     print(data_mask.shape, data_mask.dtype)
     print(preds.shape, preds.dtype)
@@ -1131,10 +1131,9 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         if BREAK_OUT_AFTER_FIRST_FOLD:
             break
 
-#    mean_preds=np.nanmean(preds,axis=0)
-#    std_preds=np.nanstd(preds,axis=0)
-#    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
-#    print_scores(test_data,test_maskimg,mean_preds,std_preds,test_DIR)
+#    preds=np.nanmean(preds,axis=0)
+#    DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,preds)
+#    print_scores(test_data,test_maskimg,preds,test_DIR)
 
     return None  # DSCs
 
@@ -1194,11 +1193,10 @@ def test(test_DIRS):
     print(test_maskimg.shape) # (173, 320, 160, 1) 
     print(preds.shape) # (n_splits, 173, num_classes, 320, 160)
 
-    mean_preds = np.nanmean(preds, axis=0)
-    std_preds = np.nanstd(preds, axis=0)
+    preds = np.nanmean(preds, axis=0)
     
-    #DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,mean_preds)
-    print_scores(test_data, test_maskimg, mean_preds, std_preds, test_DIR)
+    #DSCs,_cutoffs=calc_dice(test_DIR,test_maskimg,preds)
+    print_scores(test_data, test_maskimg, preds, test_DIR)
 
 def main(al, inputdir, modalities, multiclass, widget):
     RUNTIME_PARAMS['al'] = al
