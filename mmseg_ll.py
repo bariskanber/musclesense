@@ -44,7 +44,7 @@ modalities_t2_stir = 't2_stir'
 available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_460_575]
 
 APPID = 'Musclesense'
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -1407,8 +1407,12 @@ def main(al, inputdir, modalities, multiclass, widget):
 
         print('%d case(s) found' % (len(DIRS)))
         if len(DIRS) > 0:
-            DIRS = np.array(DIRS)
-            test(DIRS)
+            if RUNTIME_PARAMS['fastmode']:
+                DIRS = np.array(DIRS)
+                test(DIRS)
+            else:
+                for i in tqdm(range(len(DIRS)), leave=True, desc = 'Calling test'): 
+                    test(np.array(DIRS[i:i+1]))
 
     if (time.time() - start_time)/3600.0 >= 1.0:
         print('Running time: {} hour(s)'.format(round((time.time() - start_time)/3600.0, 1)))
@@ -1423,12 +1427,14 @@ if __name__ == '__main__':
     parser.add_argument('-inputdir', type=str, help='input directory')
     parser.add_argument('-modalities', type=str, help='input modalities (one of %s)'%(', '.join(available_modalities)))
     parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default is individual muscle segmentation)')
+    parser.add_argument('--fastmode', action="store_true", help='fast inference mode (may increase memory usage)')
     parser.add_argument('--smoketest', action='store_true', help='smoke test (internal use only)')
     parser.add_argument('--debug', action='store_true', help='debug mode (internal use only)')
     parser.add_argument('--version', action='version', version=__version__)
     args = parser.parse_args()
     
     RUNTIME_PARAMS['smoketest'] = args.smoketest
+    RUNTIME_PARAMS['fastmode'] = args.fastmode
     DEBUG = args.debug
 
     if args.inputdir is None or args.al not in llshortdict.keys() or args.modalities not in available_modalities:
