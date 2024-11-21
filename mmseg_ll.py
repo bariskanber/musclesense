@@ -773,7 +773,10 @@ def print_scores(data, data_mask, preds, DIRs):
                 nibobj = nib.load(filename)
                 maskimg = nibobj.get_fdata().astype(dtype)
             except:
-                print('Could not load '+filename)
+                print('Could not load ' + filename)
+        else:
+            if not RUNTIME_PARAMS['overwrite']:
+               assert(not os.path.exists(filename)) # This case should have been filtered out
 
         if maskimg is None:
             if 'Amy_GOSH' in DIR:
@@ -1406,6 +1409,27 @@ def main(al, inputdir, modalities, multiclass, widget):
                 DIRS.remove('thigh^test_cases/thigh/dhmn-gait_111') # has not T1/T2_stir for the thigh
 
         print('%d case(s) found' % (len(DIRS)))
+
+        if not RUNTIME_PARAMS['overwrite']:
+            filtered_DIRS = []
+
+            for DIR in DIRS:
+                TK = DIR.split('^')
+                assert (len(TK) >= 2)
+                ll = TK[0]
+                DIR = TK[1]
+
+                if RUNTIME_PARAMS['multiclass']:
+                    filename = "%s/%s_parcellation_%s.nii.gz" % (DIR, ll, RUNTIME_PARAMS['modalities'])
+                else:
+                    filename = "%s/%s_segmentation_%s.nii.gz" % (DIR, ll, RUNTIME_PARAMS['modalities'])
+                
+                if not os.path.exists(filename):
+                    filtered_DIRS.append(DIR)
+
+            DIRS = filtered_DIRS
+            print('%d case(s) found after filtering out already existing segmentation/parcellations' % (len(DIRS)))            
+
         if len(DIRS) > 0:
             if RUNTIME_PARAMS['fastmode']:
                 DIRS = np.array(DIRS)
@@ -1427,6 +1451,7 @@ if __name__ == '__main__':
     parser.add_argument('-inputdir', type=str, help='input directory')
     parser.add_argument('-modalities', type=str, help='input modalities (one of %s)'%(', '.join(available_modalities)))
     parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default is individual muscle segmentation)')
+    parser.add_argument('--overwrite', action="store_true", help='overwrite existing segmentations (if present)')
     parser.add_argument('--fastmode', action="store_true", help='fast inference mode (may increase memory usage)')
     parser.add_argument('--smoketest', action='store_true', help='smoke test (internal use only)')
     parser.add_argument('--debug', action='store_true', help='debug mode (internal use only)')
@@ -1435,6 +1460,7 @@ if __name__ == '__main__':
     
     RUNTIME_PARAMS['smoketest'] = args.smoketest
     RUNTIME_PARAMS['fastmode'] = args.fastmode
+    RUNTIME_PARAMS['overwrite'] = args.overwrite
     DEBUG = args.debug
 
     if args.inputdir is None or args.al not in llshortdict.keys() or args.modalities not in available_modalities:
