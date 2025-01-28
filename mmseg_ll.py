@@ -44,7 +44,7 @@ modalities_t2_stir = 't2_stir'
 available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_460_575]
 
 APPID = 'Musclesense'
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -180,7 +180,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
 
     dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
     if RUNTIME_PARAMS['modalities']==modalities_dixon_345_460_575:
-        assert checkDixonImage(dixon_345img), filename+' may be a phase image'
+        if not checkDixonImage(dixon_345img): print('CAUTION: '+filename+' may be a phase image')
 
     if RUNTIME_PARAMS['modalities']==modalities_t1:
         if inputdir != 'train' and inputdir != 'validate':
@@ -226,8 +226,8 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if 0 and filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_460_cf.nii.gz':
             pass
         else:
-            assert checkDixonImage(dixon_460img), filename+' may be a phase image'
-
+            if not checkDixonImage(dixon_460img): print('CAUTION: '+filename+' may be a phase image')
+           
     if RUNTIME_PARAMS['modalities']==modalities_t1:
         if inputdir != 'train' and inputdir != 'validate':
             filename = get_fmf(os.path.join(DIR, 't1.nii*'))
@@ -272,7 +272,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
         if filename.replace('data/','') == 'ibmcmt_p1/p1-010a/nii/0037-Dixon_TE_575_cf.nii.gz':
             pass
         else:
-            assert checkDixonImage(dixon_575img), filename+' may be a phase image'
+            if not checkDixonImage(dixon_575img): print('CAUTION: '+filename+' may be a phase image')
 
     # Mask selection (consider not using _af which are poor masks)
     if DEBUG:
@@ -1413,8 +1413,8 @@ def main(al, inputdir, modalities, multiclass, widget):
         if not RUNTIME_PARAMS['overwrite']:
             filtered_DIRS = []
 
-            for DIR in DIRS:
-                TK = DIR.split('^')
+            for __DIR in DIRS:
+                TK = __DIR.split('^')
                 assert (len(TK) >= 2)
                 ll = TK[0]
                 DIR = TK[1]
@@ -1425,7 +1425,7 @@ def main(al, inputdir, modalities, multiclass, widget):
                     filename = "%s/%s_segmentation_%s.nii.gz" % (DIR, ll, RUNTIME_PARAMS['modalities'])
                 
                 if not os.path.exists(filename):
-                    filtered_DIRS.append(DIR)
+                    filtered_DIRS.append(__DIR)
 
             DIRS = filtered_DIRS
             print('%d case(s) found after filtering out already existing segmentation/parcellations' % (len(DIRS)))            
