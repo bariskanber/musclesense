@@ -16,6 +16,8 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
         t1t2stir = 'data/ibmcmt_t1_t2_stir/' + filename.replace('data/ibmcmt_p6/','')
     elif filename.startswith('data/brcalskd/'):
         t1t2stir = 'data/brcalskd_t1_t2_stir/' + filename.replace('data/brcalskd/','')
+    elif filename.startswith('data/brcalskd-hand/'):
+        t1t2stir = 'data/brcalskd-hand_t1_t2_stir/' + filename.replace('data/brcalskd-hand/','')
     elif filename.startswith('data/hypopp/'):
         t1t2stir = 'data/hypopp_t1_t2_stir/' + filename.replace('data/hypopp/','')
     elif filename.startswith('data/mdacmt/') or filename.startswith('data/poems/') or filename.startswith('data/alscs/') or filename.startswith('data/arimoclomol/') or filename.startswith('data/dhmn/'):
@@ -27,8 +29,8 @@ def register_t1_t2_stir_to_dixon(filename: str, ll: str, llshortdict: dict):
     if not os.path.isdir(t1t2stir):
         raise Exception('T1T2STIR dir %s not found'%(t1t2stir))
     
-    keywords = ['stir','STIR','Stir']
-    #keywords = ['t1w','t1_tse','T1_TSE']
+    #keywords = ['stir','STIR','Stir']
+    keywords = ['t1w','t1_tse','T1_TSE']
     
     for keyword in keywords:
         dirlist = glob.glob('%s/*%s*_%s.nii.gz'%(t1t2stir,keyword,ll))

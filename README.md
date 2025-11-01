@@ -1,5 +1,5 @@
-## Musclesense 
-Musclesense comprises a set deep learning AI networks for neuromuscular diseases research that perform the anatomical segmentation of muscles in 3-point Dixon, T1w, and T2-stir MRI volumes. 
+## MuscleSense 
+MuscleSense comprises a set deep learning AI networks for neuromuscular diseases research that perform the anatomical segmentation of muscles in 3-point Dixon, T1w, and T2-stir MRI volumes. 
 
 ## Example
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
@@ -97,7 +97,7 @@ A file labelled calf_parcellation_dixon_345_460_575.nii.gz will be produced in e
 #### Funding
 We are grateful to the Wellcome Trust, National Institute for Health and Care Research, and National Brain Appeal for their kind funding and support of this project.
 
-Please consider citing the following publications if you use Musclesense in your research:
+Please consider citing the following publications if you use MuscleSense in your research:
 * Musclesense: a trained, artificial neural network for the anatomical segmentation of lower limb magnetic resonance images in neuromuscular diseases (https://pubmed.ncbi.nlm.nih.gov/32892313/)
 * Quantitative MRI outcome measures in CMT1A using automated lower limb muscle segmentation (https://pubmed.ncbi.nlm.nih.gov/37979968/)
   

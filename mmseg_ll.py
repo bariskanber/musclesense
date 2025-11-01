@@ -45,7 +45,7 @@ available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_
 
 APPID = 'Musclesense'
 __version__ = '2.1.0'
-APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, MRI volumes'
+APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -1490,6 +1490,9 @@ if __name__ == '__main__':
     RUNTIME_PARAMS['fastmode'] = args.fastmode
     RUNTIME_PARAMS['overwrite'] = args.overwrite
     DEBUG = args.debug
+
+    args.modalities = args.modalities.lower()
+    if args.modalities == 't1w': args.modalities = 't1'
 
     if args.inputdir is None or args.al not in llshortdict.keys() or args.modalities not in available_modalities:
         parser.print_help()
