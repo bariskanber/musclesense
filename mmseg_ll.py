@@ -22,12 +22,12 @@ import torchvision.transforms as tt
 from torchvision.transforms.functional import resized_crop
 import segmentation_models_pytorch as smp
 
-from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
-from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
-from mmseg_utils import numpy_dice_coefficient, scale2D, checkDixonImage, get_fmf
-from nifti_tools import save_nifti
-from mmseg_labels import labels_calf_STANDARD, labels_thigh_STANDARD, labels_hand_STANDARD
-from defaultsMRCCentre import get_subject_id_from_DIR
+from convertMRCCentreMaskToBinary import *
+from convertMRCCentreMaskToStandard import *
+from mmseg_utils import *
+from nifti_tools import *
+from mmseg_labels import *
+from defaultsMRCCentre import *
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -1176,12 +1176,12 @@ def test(test_DIRS):
         weightsfile = os.path.join(INSTALL_DIR, weightsfile)
 
         if not os.path.exists(weightsfile):
-            msg = 'Downloading '+os.path.basename(weightsfile)
+            url = "https://github.com/bariskanber/musclesense/releases/download/v%s/%s" % (__version__,
+                os.path.basename(weightsfile))
+            msg = 'Downloading '+os.path.basename(weightsfile)+' from '+url
             print(msg)
             if not os.path.exists(os.path.join(INSTALL_DIR, 'models')):
                 os.mkdir(os.path.join(INSTALL_DIR, 'models'))
-            url = "https://github.com/bariskanber/musclesense/releases/download/v%s/%s" % (__version__,
-                os.path.basename(weightsfile))
             urllib.request.urlretrieve(url, weightsfile)
 
         model.load_state_dict(torch.load(weightsfile,map_location=device,weights_only=True))
@@ -1499,6 +1499,8 @@ if __name__ == '__main__':
         if os.path.exists('__DEBUG/DEBUG_excluded_slices.csv'): os.remove('__DEBUG/DEBUG_excluded_slices.csv')
         if not os.path.exists(os.path.join(INSTALL_DIR, '__DEBUG')):
                 os.mkdir(os.path.join(INSTALL_DIR, '__DEBUG'))
+
+    setup_environment()
 
     main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
     

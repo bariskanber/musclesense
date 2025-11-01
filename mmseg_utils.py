@@ -1,6 +1,9 @@
+import os
+import platform
 import glob
 import numpy as np
 from scipy import ndimage as nd
+
 
 def numpy_dice_coefficient(y_true, y_pred, smooth=1.):
     y_true_f = y_true.flatten()
@@ -32,12 +35,14 @@ def scale3D(inmat, targetsize_z, targetsize_y, targetsize_x, order=3, mode='cons
 
     return retmat
 
+
 def checkDixonImage(dixon_img) -> bool:
     hist, _ = np.histogram(dixon_img, bins=20)
     if np.argmax(hist) == 0: return True
     else:
         return False
         
+
 def get_fmf(pattern: str, case_sensitive = False) -> str:
     """Get first file matching given pattern(s) or raise an exception
 
@@ -58,3 +63,14 @@ def get_fmf(pattern: str, case_sensitive = False) -> str:
             return str(files[0])
 
     raise Exception(f'ERROR: No files found matching {pattern}')
+
+
+def setup_environment(verbose = False):
+    if platform.system() == "Linux":
+        if "SSL_CERT_DIR" not in os.environ:
+            os.environ["SSL_CERT_DIR"] = "/etc/ssl/certs"
+            if verbose: print("Set SSL_CERT_DIR to /etc/ssl/certs")
+        else:
+            if verbose: print("SSL_CERT_DIR already defined:", os.environ["SSL_CERT_DIR"])
+    else:
+        if verbose: print("Not running on Linux. No changes made.")
