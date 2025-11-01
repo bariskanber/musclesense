@@ -1,7 +1,17 @@
 import numpy as np
 
 def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
-    if ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
+    if ll=='hand':
+        assert(np.min(maskimg)==0)
+        assert(np.max(maskimg)<=23)
+
+        expected_vals=[0,19,20,22,23]
+        actual_vals=np.unique(maskimg)
+        if not np.array_equal(actual_vals,expected_vals):
+            raise Exception('Expected unique mask values were %s but are %s'%(expected_vals,actual_vals))
+
+        maskimg[np.where(maskimg>0)]=1
+    elif ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=16)
 

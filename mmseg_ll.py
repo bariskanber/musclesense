@@ -26,14 +26,14 @@ from convertMRCCentreMaskToBinary import convertMRCCentreMaskToBinary
 from convertMRCCentreMaskToStandard import convertMRCCentreMaskToStandard
 from mmseg_utils import numpy_dice_coefficient, scale2D, checkDixonImage, get_fmf
 from nifti_tools import save_nifti
-from mmseg_labels import labels_calf_STANDARD, labels_thigh_STANDARD
+from mmseg_labels import labels_calf_STANDARD, labels_thigh_STANDARD, labels_hand_STANDARD
 from defaultsMRCCentre import get_subject_id_from_DIR
 
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-llshortdict = {'calf': 'cf', 'thigh': 'th'}
+llshortdict = {'calf': 'cf', 'thigh': 'th', 'hand': 'ha'}
 
 target_size_y, target_size_x = 320, 160
 
@@ -44,8 +44,8 @@ modalities_t2_stir = 't2_stir'
 available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_460_575]
 
 APPID = 'Musclesense'
-__version__ = '2.0.3'
-APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, lower-limb MRI volumes'
+__version__ = '2.1.0'
+APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir, MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -79,10 +79,12 @@ def __valid_mask(mask_original, help_str):
             mask[mask_original > 0] = 1
             mask[mask_original == 7] = 0  # right tibia marrow
             mask[mask_original == 17] = 0  # left tibia marrow
-        else:
+        elif RUNTIME_PARAMS['al'] == 'thigh':
             mask[mask_original > 0] = 1
             mask[mask_original == 11] = 0  # right femur marrow
             mask[mask_original == 31] = 0  # left femur marrow
+        elif RUNTIME_PARAMS['al'] == 'hand':
+            mask[mask_original > 0] = 1
 
     if not np.array_equal(mask.shape, [target_size_y, target_size_x]):
         print('np.array_equal(mask.shape,[target_size_y,target_size_x]) is false',
@@ -100,16 +102,21 @@ def __valid_mask(mask_original, help_str):
         if DEBUG:
             print('WARNING: %s with a value of %f, assuming this is not a valid mask' %
                   (help_str, mask_sum/np.prod(mask.shape)))
+            if 'BRCALSKD_026A^slice4' in help_str:
+                print(mask.shape)
+                print(np.prod(mask.shape))
+                print(mask_sum)
         return MaskValidity.bad
 
-    QQ = np.where(mask == 1)
-    diffY = np.max(QQ[0])-np.min(QQ[0])
-    assert diffY > 0, 'diffY needs to be >0'
-    ratio = float(diffY)/mask.shape[0]
-    if ratio < 0.5:
-        if DEBUG:
-            print('WARNING: ratio (%f)<0.5 for %s, assuming this is a one sided mask' % (ratio,help_str))
-        return MaskValidity.singlesided
+    if RUNTIME_PARAMS['al'] in ['calf','thigh']:
+        QQ = np.where(mask == 1)
+        diffY = np.max(QQ[0])-np.min(QQ[0])
+        assert diffY > 0, 'diffY needs to be >0'
+        ratio = float(diffY)/mask.shape[0]
+        if ratio < 0.5:
+            if DEBUG:
+                print('WARNING: ratio (%f)<0.5 for %s, assuming this is a one sided mask' % (ratio,help_str))
+            return MaskValidity.singlesided
 
     return MaskValidity.valid
 
@@ -278,7 +285,9 @@ def load_case_base(inputdir, DIR, multiclass, test):
     if DEBUG:
         print('selecting mask')
         
-    if 'brcalskd' in DIR:
+    if ll == 'hand':
+        filename = os.path.join(DIR, 'roi/Dixon345_ha_uk_3.nii.gz')
+    elif 'brcalskd' in DIR:
         filename = os.path.join(DIR, 'roi/Dixon345_'+llshortdict[ll]+'_uk_3.nii.gz')
     elif 'dhmn' in DIR:
         filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_AA_3.nii.gz')
@@ -383,6 +392,10 @@ def load_case(inputdir, DIR, multiclass, test=False):
         print('Could not get image data for '+DIR)
         return None
 
+    if RUNTIME_PARAMS['al']=='hand':
+        dixon_460img = dixon_345img.copy()
+        dixon_575img = dixon_345img.copy()
+
     assert (dixon_460img.shape == dixon_345img.shape)
     assert (dixon_460img.shape == dixon_575img.shape)
     assert (dixon_460img.shape == maskimg.shape)
@@ -481,6 +494,7 @@ def extract_fatfractions(DIRS, maskimg):
         
         if ll=='calf': labels = labels_calf_STANDARD 
         elif ll=='thigh': labels = labels_thigh_STANDARD 
+        elif ll=='hand': labels = labels_hand_STANDARD 
         else:
             raise Exception(f'Invalid anatomical location {ll}')
 
@@ -554,10 +568,14 @@ def read_and_normalize_data(DIRS, test=False):
                         valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17]  
                         valid_values1 = [0, 1, 2, 3, 4, 5, 6, 7]  
                         valid_values2 = [0, 11, 12, 13, 14, 15, 16, 17]  
-                    else:
+                    elif RUNTIME_PARAMS['al'] == 'thigh':
                         valid_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
                         valid_values1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
                         valid_values2 = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+                    elif RUNTIME_PARAMS['al'] == 'hand':
+                        valid_values = [0, 19, 20, 22, 23]
+                        valid_values1 = [0, 19, 20, 22, 23]
+                        valid_values2 = [0, 19, 20, 22, 23]
                         
                     ok=False
                     if noise_slice:
@@ -1227,7 +1245,11 @@ def main(al, inputdir, modalities, multiclass, widget):
         time.sleep(5)
 
     if RUNTIME_PARAMS['multiclass']:
-        RUNTIME_PARAMS['classes'] = 17+1 if RUNTIME_PARAMS['al'] == 'calf' else 31+1
+        if RUNTIME_PARAMS['al'] == 'calf': RUNTIME_PARAMS['classes'] = 17+1
+        elif RUNTIME_PARAMS['al'] == 'thigh': RUNTIME_PARAMS['classes'] = 31+1
+        elif RUNTIME_PARAMS['al'] == 'hand': RUNTIME_PARAMS['classes'] = 23+1
+        else:
+            raise Exception('Unsupported anatomical location '+RUNTIME_PARAMS['al'])
     else:
         RUNTIME_PARAMS['classes'] = 1
 
@@ -1244,7 +1266,11 @@ def main(al, inputdir, modalities, multiclass, widget):
         torch.backends.cudnn.deterministic = True
 
         DIRS = []
-        for DATA_DIR in ['arimoclomol','mdacmt','alscs','poems','dhmn','brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']:
+        if RUNTIME_PARAMS['al'] == 'hand': DATA_DIRS = ['brcalskd-hand']
+        else:
+            DATA_DIRS = ['arimoclomol','mdacmt','alscs','poems','dhmn','brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']
+        
+        for DATA_DIR in DATA_DIRS:
             for de in glob.glob(os.path.join('data/'+DATA_DIR, '*')):
                 if not os.path.isdir(de):
                     if DEBUG:
@@ -1373,6 +1399,8 @@ def main(al, inputdir, modalities, multiclass, widget):
                 'thigh^data/dhmn/gait_111b',
                 'thigh^data/mdacmt/iowa_023a',
                 'thigh^data/arimoclomol/nhnn_020-029',
+                
+                'hand^data/brcalskd-hand/BRCALSKD_026B',
             ]
             print('Before cases_to_exclude_for_unseen_validation',len(train_DIRS))
             for DIR in cases_to_exclude_for_unseen_validation:

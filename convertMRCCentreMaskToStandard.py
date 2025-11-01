@@ -6,7 +6,21 @@ def convertMRCCentreMaskToStandard(DIR,ll,maskimg):
     if len(np.unique(maskimg))<3:
         raise Exception('Not enough labels detected, len(np.unique(maskimg)) = '+str(len(np.unique(maskimg))))
     
-    if ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
+    if ll=='hand':
+        assert(np.min(maskimg)==0)
+        assert(np.max(maskimg)<=23)
+
+        expected_vals=[0,19,20,22,23]
+        actual_vals=np.unique(maskimg)
+        if not np.array_equal(actual_vals,expected_vals):
+            raise Exception('Expected unique mask values were %s but are %s'%(expected_vals,actual_vals))
+
+        maskimg[np.where(maskimg_original==0)]=0
+        maskimg[np.where(maskimg_original==19)]=19
+        maskimg[np.where(maskimg_original==20)]=20
+        maskimg[np.where(maskimg_original==22)]=22
+        maskimg[np.where(maskimg_original==23)]=23
+    elif ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=16)
 

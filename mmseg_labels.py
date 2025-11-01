@@ -1,3 +1,11 @@
+labels_hand_STANDARD = {
+    0: {'name': 'Clear Label',                 'abbreviation': 'CLR'},
+    19: {'name': 'Thenar',                     'abbreviation': 'TH'},
+    20: {'name': 'Hypothenar',                 'abbreviation': 'HTH'},
+    22: {'name': 'Interossei',                 'abbreviation': 'IO'},
+    23: {'name': 'Lumbricales',                'abbreviation': 'LC'},
+}
+    
 labels_thigh_STANDARD = {
     0: {'name': 'Clear Label',                 'abbreviation': 'CLR'},
     1: {'name': 'Right Rectus Femoris',        'abbreviation': 'RRF'},
@@ -42,4 +50,6 @@ labels_calf_STANDARD = {
     17: {'name': 'Left Tibia Marrow',          'abbreviation': 'LTM'},
 }
 
-labels_STANDARD = {'calf': labels_calf_STANDARD, 'thigh': labels_thigh_STANDARD}
+labels_STANDARD = {'calf': labels_calf_STANDARD, 'thigh': labels_thigh_STANDARD, 
+    'hand': labels_hand_STANDARD}
+
