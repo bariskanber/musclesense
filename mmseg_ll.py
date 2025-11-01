@@ -1500,7 +1500,7 @@ if __name__ == '__main__':
         if not os.path.exists(os.path.join(INSTALL_DIR, '__DEBUG')):
                 os.mkdir(os.path.join(INSTALL_DIR, '__DEBUG'))
 
-    setup_environment()
+    setup_environment(verbose = DEBUG)
 
     main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
     
