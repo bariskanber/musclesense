@@ -45,13 +45,13 @@ available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_
 
 APPID = 'Musclesense'
 __version__ = '2.1.0'
-APPDESC = 'Trained neural networks for the anatomical segmentation of muscle groups in 3-point Dixon, T1w, and T2-stir MRI volumes'
+APPDESC = 'Trained neural networks for the anatomical segmentation of calf, thigh and hand muscles in 3-point Dixon, T1w, and T2-stir MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
 print(f'{APPID} v{__version__} - {APPDESC}')
 
-RUNTIME_PARAMS = {'smoketest': False, 'caution': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
+RUNTIME_PARAMS = {'selftest': False, 'caution': False, 'batch_size': 4, 'lr': 1E-3, 'patience': 5}
 
 class MaskValidity(Enum):
     valid = 1
@@ -820,11 +820,13 @@ def print_scores(data, data_mask, preds, DIRs):
 
         if RUNTIME_PARAMS['multiclass']:
             assert (preds[i].shape[0] == RUNTIME_PARAMS['classes']) # preds[i] shape num_classes, W, H
-            img_to_save = scale_to_size(np.argmax(preds[i], axis=0), maskimg.shape[0], maskimg.shape[1])
+            img_to_save = np.argmax(preds[i], axis=0)
+            img_to_save[np.max(preds[i], axis=0) < RUNTIME_PARAMS['pth']] = 0
+            img_to_save = scale_to_size(img_to_save, maskimg.shape[0], maskimg.shape[1])
         else:
             img_to_save = scale_to_size(preds[i, 0], maskimg.shape[0], maskimg.shape[1])
-            img_to_save[img_to_save <= 0.5] = 0
-            img_to_save[img_to_save > 0.5] = 1
+            img_to_save[img_to_save <= RUNTIME_PARAMS['pth']] = 0
+            img_to_save[img_to_save > RUNTIME_PARAMS['pth']] = 1
 
         maskimg[:, :, slice] = img_to_save
 
@@ -1005,7 +1007,7 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
 
         loss_fn = MMSegLoss
         history = {'loss': [], 'val_loss': [], 'acc': [], 'val_acc': []}
-        for epoch in range(5 if RUNTIME_PARAMS['smoketest'] else 5555):
+        for epoch in range(5 if RUNTIME_PARAMS['selftest'] else 5555):
             epoch_st = time.time()
 
             model.train()
@@ -1240,8 +1242,8 @@ def main(al, inputdir, modalities, multiclass, widget):
         RUNTIME_PARAMS['device'] = torch.device('cpu')
         print('CUDA not available, will run on CPU')
 
-    if RUNTIME_PARAMS['smoketest']:
-        print('Smoke test enabled')
+    if RUNTIME_PARAMS['selftest']:
+        print('Self test started')
         time.sleep(5)
 
     if RUNTIME_PARAMS['multiclass']:
@@ -1357,7 +1359,7 @@ def main(al, inputdir, modalities, multiclass, widget):
 
                 # if False and len(DIRS)>20: break
 
-        if RUNTIME_PARAMS['smoketest']:
+        if RUNTIME_PARAMS['selftest']:
             DIRS = DIRS[:20]
         print('%d cases found' % (len(DIRS)))
         #print(DIRS)
@@ -1478,24 +1480,29 @@ if __name__ == '__main__':
     parser.add_argument('-al', type=str, help='anatomical location (one of %s)'%(', '.join(llshortdict.keys())))
     parser.add_argument('-inputdir', type=str, help='input directory')
     parser.add_argument('-modalities', type=str, help='input modalities (one of %s)'%(', '.join(available_modalities)))
-    parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default is individual muscle segmentation)')
+    parser.add_argument('--pth', type=float, help='Mask binarisation threshold (default: 0.5)', default=0.5)
+    parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default: individual muscle segmentation)')
     parser.add_argument('--overwrite', action="store_true", help='overwrite existing segmentations (if present)')
     parser.add_argument('--fastmode', action="store_true", help='fast inference mode (may increase memory usage)')
-    parser.add_argument('--smoketest', action='store_true', help='smoke test (internal use only)')
-    parser.add_argument('--debug', action='store_true', help='debug mode (internal use only)')
+    parser.add_argument('--selftest', action='store_true', help='self test')
+    parser.add_argument('--debug', action='store_true', help='debug mode')
     parser.add_argument('--version', action='version', version=__version__)
     args = parser.parse_args()
     
-    RUNTIME_PARAMS['smoketest'] = args.smoketest
+    RUNTIME_PARAMS['selftest'] = args.selftest
     RUNTIME_PARAMS['fastmode'] = args.fastmode
     RUNTIME_PARAMS['overwrite'] = args.overwrite
+    RUNTIME_PARAMS['pth'] = args.pth
     DEBUG = args.debug
 
-    args.modalities = args.modalities.lower()
-    if args.modalities == 't1w': args.modalities = 't1'
-
+    if type(args.modalities) is str:
+        args.modalities = args.modalities.lower()
+        if args.modalities == 't1w':
+            args.modalities = 't1'
+            
     if args.inputdir is None or args.al not in llshortdict.keys() or args.modalities not in available_modalities:
         parser.print_help()
+        print('\nERROR: Please specify the correct anatomical location and MRI modality\n')
         sys.exit(1)
         
     if DEBUG:
