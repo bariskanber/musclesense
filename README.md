@@ -4,6 +4,8 @@ MuscleSense comprises a set deep learning AI networks for neuromuscular diseases
 ## Example
 ![image](https://github.com/user-attachments/assets/647b7253-4b80-44e6-b8b3-81a7829a2b04)
 
+<img width="2585" height="548" alt="image" src="https://github.com/user-attachments/assets/e5e379bc-988b-4c6d-b281-79c082abb3fe" />
+
 ## Installation
 The instructions below are for installing the software at ```~/musclesense``` on Linux. Replace ```~``` and ```musclesense``` as appropriate if you wish to install the software elsewhere on your filesystem.
 
