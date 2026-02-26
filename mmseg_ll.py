@@ -7,8 +7,10 @@ import glob
 import time
 from enum import Enum
 import random
+import uuid
 import multiprocessing
 from joblib import Parallel, delayed
+import subprocess
 import argparse
 import urllib.request
 from tqdm import tqdm
@@ -33,7 +35,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-llshortdict = {'calf': 'cf', 'thigh': 'th', 'hand': 'ha'}
+llshortdict = {'calf': 'cf', 'thigh': 'th', 'hand': 'ha', 'foot': 'ft'}
 
 target_size_y, target_size_x = 320, 160
 
@@ -45,7 +47,7 @@ available_modalities = [modalities_t1, modalities_t2_stir, modalities_dixon_345_
 
 APPID = 'Musclesense'
 __version__ = '2.1.0'
-APPDESC = 'Trained neural networks for the anatomical segmentation of calf, thigh and hand muscles in 3-point Dixon, T1w, and T2-stir MRI volumes'
+APPDESC = 'Trained neural networks for the anatomical segmentation of calf, thigh, foot, and hand muscles in 3-point Dixon, T1w, and T2-stir MRI volumes'
 AUTHOR = 'bk'
 INSTALL_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -85,6 +87,8 @@ def __valid_mask(mask_original, help_str):
             mask[mask_original == 31] = 0  # left femur marrow
         elif RUNTIME_PARAMS['al'] == 'hand':
             mask[mask_original > 0] = 1
+        elif RUNTIME_PARAMS['al'] == 'foot':
+            mask[mask_original > 0] = 1
 
     if not np.array_equal(mask.shape, [target_size_y, target_size_x]):
         print('np.array_equal(mask.shape,[target_size_y,target_size_x]) is false',
@@ -120,12 +124,40 @@ def __valid_mask(mask_original, help_str):
 
     return MaskValidity.valid
 
-def load_BFC_image(filename, test):
-    if True:
-        if not os.path.exists(filename):
-            raise Exception(f'ERROR: the following file does not exist {filename}')
+
+def make_mask_sideagnostic(mask):
+    """Make a given mask side agnostic"""
+    labels = labels_STANDARD[RUNTIME_PARAMS['al']]
+    ids = list(labels.keys())
+    names = [item['name'] for item in labels.values()]
+    
+    for label_id in np.unique(mask):
+        if labels[label_id]['name'].startswith('Left '):
+            change_from = label_id
+            change_to = ids[names.index(labels[label_id]['name'].replace('Left ', 'Right '))]
+            mask[mask == change_from] = change_to
+            
+
+def load_and_reorient(filename):
+    if not os.path.exists(filename):
+        raise Exception(f'ERROR: the following file does not exist {filename}')
+    
+    if RUNTIME_PARAMS['al'] == 'foot':
+        temp_filename = f'mmseg_ll_temp_{uuid.uuid4()}.nii.gz'
+
+        status, output = subprocess.getstatusoutput(f'fslswapdim {filename} LR IS AP {temp_filename}')
+        if status != 0:
+            status, output = subprocess.getstatusoutput(f'fslswapdim {filename} RL IS AP {temp_filename}')
+            if status != 0:
+                raise Exception(f'ERROR: fslswapdim failed for {filename} with error: {output}')
+        filename = temp_filename
+    
+    try:
         nibobj = nib.load(filename)
         return nibobj, nibobj.get_fdata()
+    except Exception as ex:
+        raise Exception(f'Failed to load {filename} with error: {repr(ex)}')
+
 
 def load_case_base(inputdir, DIR, multiclass, test):
     CAUTION=False
@@ -160,15 +192,33 @@ def load_case_base(inputdir, DIR, multiclass, test):
             print('Renaming '+filetorename)
             os.rename(filetorename, filetorename.replace('-dix3d_','-Dixon_'))
             
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+ll+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+llshortdict[ll]+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*3*45_'+llshortdict[ll].upper()+'*.nii.gz'))
-        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+        if 'cmtiowa_3d' in DIR:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-dix3d_*3*45_*.nii.gz'))
+            assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+            id1 = os.path.basename(dixfile[0]).split('-dix3d')[0].replace('-', '.')
+            id2 = os.path.basename(dixfile[1]).split('-dix3d')[0].replace('-', '.')
+        else:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+ll+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*3*45_'+llshortdict[ll]+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*3*45_'+llshortdict[ll].upper()+'*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-DIX3D_*_345-*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-dix3d_*_345.nii.gz'))
+                
+            if ll == 'foot':
+                assert len(dixfile) == 1, 'Failed len(dixfile)==1 for foot for '+DIR
+                id1 = "1"
+                id2 = "2"
+            else:
+                assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+
+                id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+                id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+        
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -185,7 +235,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
             from register_t1_t2_stir_to_dixon import register_t1_t2_stir_to_dixon
             register_t1_t2_stir_to_dixon(filename, ll, llshortdict)
 
-    dixon_345imgobj, dixon_345img = load_BFC_image(filename, test)
+    dixon_345imgobj, dixon_345img = load_and_reorient(filename)
     if RUNTIME_PARAMS['modalities']==modalities_dixon_345_460_575:
         if not checkDixonImage(dixon_345img): print('CAUTION: '+filename+' may be a phase image')
 
@@ -202,15 +252,33 @@ def load_case_base(inputdir, DIR, multiclass, test):
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, '?ixon460.nii*'))
     else:
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+ll+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+llshortdict[ll]+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*4*60_'+llshortdict[ll].upper()+'*.nii.gz'))
-        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+        if 'cmtiowa_3d' in DIR:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-dix3d_*4*60_*.nii.gz'))
+            assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+            id1 = os.path.basename(dixfile[0]).split('-dix3d')[0].replace('-', '.')
+            id2 = os.path.basename(dixfile[1]).split('-dix3d')[0].replace('-', '.')
+        else:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+ll+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*4*60_'+llshortdict[ll]+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*4*60_'+llshortdict[ll].upper()+'*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-DIX3D_*_460-*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-dix3d_*_460.nii.gz'))
+
+            if ll == 'foot':
+                assert len(dixfile) == 1, 'Failed len(dixfile)==1 for foot for '+DIR
+                id1 = "1"
+                id2 = "2"
+            else:
+                assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+
+                id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+                id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+                
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -224,7 +292,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
             
         filename = dixfile[0]
 
-    dixon_460imgobj, dixon_460img = load_BFC_image(filename, test)
+    dixon_460imgobj, dixon_460img = load_and_reorient(filename)
     if not np.array_equal(dixon_345imgobj.header.get_zooms(),dixon_460imgobj.header.get_zooms()):
        CAUTION=True
        if DEBUG: print('CAUTION: dixon_345 and dixon_460 image resolutions are different for '+DIR)
@@ -248,15 +316,33 @@ def load_case_base(inputdir, DIR, multiclass, test):
     elif inputdir != 'train' and inputdir != 'validate':
         filename = get_fmf(os.path.join(DIR, '?ixon575.nii*'))
     else:
-        dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+ll+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+llshortdict[ll]+'.nii.gz'))
-        if len(dixfile) == 0:
-            dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*5*75_'+llshortdict[ll].upper()+'*.nii.gz'))
-        assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+        if 'cmtiowa_3d' in DIR:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-dix3d_*5*75_*.nii.gz'))
+            assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
 
-        id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
-        id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+            id1 = os.path.basename(dixfile[0]).split('-dix3d')[0].replace('-', '.')
+            id2 = os.path.basename(dixfile[1]).split('-dix3d')[0].replace('-', '.')
+        else:
+            dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+ll+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*-Dixon*TE*5*75_'+llshortdict[ll]+'.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, 'nii/*DIXON*TE*5*75_'+llshortdict[ll].upper()+'*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-DIX3D_*_575-*.nii.gz'))
+            if len(dixfile) == 0:
+                dixfile = glob.glob(os.path.join(DIR, '*-dix3d_*_575.nii.gz'))
+
+            if ll == 'foot':
+                assert len(dixfile) == 1, 'Failed len(dixfile)==1 for foot for '+DIR
+                id1 = "1"
+                id2 = "2"
+            else:
+                assert len(dixfile) == 2, 'Failed len(dixfile)==2 for '+DIR
+
+                id1 = os.path.basename(dixfile[0]).split('-Dixon')[0].replace('-', '.')
+                id2 = os.path.basename(dixfile[1]).split('-Dixon')[0].replace('-', '.')
+            
         try:
             id1 = float(id1)
             id2 = float(id2)
@@ -270,7 +356,7 @@ def load_case_base(inputdir, DIR, multiclass, test):
             
         filename = dixfile[0]
 
-    dixon_575imgobj, dixon_575img = load_BFC_image(filename, test)
+    dixon_575imgobj, dixon_575img = load_and_reorient(filename)
     if not np.array_equal(dixon_345imgobj.header.get_zooms(),dixon_575imgobj.header.get_zooms()):
         CAUTION=True
         if DEBUG: print('CAUTION: dixon_345 and dixon_575 image resolutions are different for '+DIR)
@@ -286,7 +372,22 @@ def load_case_base(inputdir, DIR, multiclass, test):
         print('selecting mask')
         
     if ll == 'hand':
-        filename = os.path.join(DIR, 'roi/Dixon345_ha_uk_3.nii.gz')
+        filename = os.path.join(DIR, 'roi/Dixon345_ha-volume_uk_3.nii.gz')
+        if not os.path.exists(filename):
+            filename = os.path.join(DIR, 'roi/Dixon345_ha_uk_3.nii.gz')
+    elif 'seg_data_mdacmt_foot' in DIR:
+        files = glob.glob(os.path.join(DIR, 'foot_dixon345_cd_*.nii.gz'))
+        assert len(files) > 0, 'No mask files found for foot in '+DIR
+        
+        if len(files)==1:
+            filename = files[0]
+        else:
+            filename = f'mmseg_ll_temp_seg_data_mdacmt_foot_{uuid.uuid4()}.nii.gz'
+            cmd = f'fslmaths {files[0]}'
+            for file in files[1:]:
+                cmd += f' -max {file}'
+            cmd += f' {filename}'
+            os.system(cmd)
     elif 'brcalskd' in DIR:
         filename = os.path.join(DIR, 'roi/Dixon345_'+llshortdict[ll]+'_uk_3.nii.gz')
     elif 'dhmn' in DIR:
@@ -305,6 +406,10 @@ def load_case_base(inputdir, DIR, multiclass, test):
             filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_cd_3.nii.gz')
         if not os.path.exists(filename):
             filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_cmd_3.nii.gz')
+    elif 'cmtiowa_3d' in DIR:
+        filename = os.path.join(DIR, 'roi/'+ll+'_dix3D345_ah_2slice.nii.gz')
+    elif 'cmtiowa' in DIR:
+        filename = os.path.join(DIR, 'roi/'+ll+'_dixon345_ah_3.nii.gz')
     elif 'hypopp' in DIR:
         filename = os.path.join(DIR, 'acq/ROI/'+ll+'_dixon345_bk.nii.gz')
         if multiclass or not os.path.exists(filename):
@@ -355,10 +460,12 @@ def load_case_base(inputdir, DIR, multiclass, test):
     if filename is None:
         maskimg = np.zeros(dixon_345img.shape, dtype=np.uint8)
     else:
-        maskimgobj = nib.load(filename)
+        maskimgobj, maskimg = load_and_reorient(filename)
         maskimg = np.asanyarray(maskimgobj.dataobj)
         if not np.array_equal(dixon_345imgobj.header.get_zooms(), maskimgobj.header.get_zooms()):
-            raise Exception('dixon_345 and mask image resolutions are different for '+DIR)
+            print(dixon_345imgobj.header.get_zooms())
+            print(maskimgobj.header.get_zooms())
+            raise Exception(f'dixon_345 and mask image ({filename}) resolutions are different for '+DIR)
 
     if ll == 'calf' and DIR.replace('data/','') == 'ibmcmt_p2/p2-042':
         maskimg[:, :, 3] = 0
@@ -400,13 +507,6 @@ def load_case(inputdir, DIR, multiclass, test=False):
     assert (dixon_460img.shape == dixon_575img.shape)
     assert (dixon_460img.shape == maskimg.shape)
 
-    t = type(maskimg[0, 0, 0])
-    if t is not np.uint8 and t is not np.uint16:
-        if DIR.replace('data/','') in ['calf^ibmcmt_p5/p5-034']:
-            pass
-        else:
-            raise Exception('dtype not uint8/16 for mask '+DIR+' it is, '+str(t))
-
     maskimg = maskimg.astype(np.uint8)
 
     return DIR, dixon_345img, dixon_460img, dixon_575img, maskimg, CAUTION
@@ -417,10 +517,9 @@ def load_data(DIRS, test=False):
     if len(DIRS) < 1:
         raise Exception('No data to load')
 
-    print('Reading %d item(s)...' % len(DIRS))
-    n_jobs = min(4,max(1, multiprocessing.cpu_count()//2))
+    print('Reading %d item(s) using %d CPU(s)...' % (len(DIRS), RUNTIME_PARAMS['ncpus']))
 
-    ret = Parallel(n_jobs=n_jobs, verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, RUNTIME_PARAMS['multiclass'], test) for DIR in DIRS)
+    ret = Parallel(n_jobs=RUNTIME_PARAMS['ncpus'], verbose=2)(delayed(load_case)(RUNTIME_PARAMS['inputdir'], DIR, RUNTIME_PARAMS['multiclass'], test) for DIR in DIRS)
 
     X_DIR, X_dixon_345img, X_dixon_460img, X_dixon_575img, X_maskimg, X_CAUTION = zip(*ret)
 
@@ -485,16 +584,17 @@ def extract_fatfractions(DIRS, maskimg):
                 fout.write(f'{DIR.replace("data/","")},Fat fraction image not found,*,*,*,*,*\n')
             continue
             
-        ffimg_obj = nib.load(ff_filename)
+        ffimg_obj, ffimg = load_and_reorient(ff_filename)
         ffimg = ffimg_obj.get_fdata()
         slice_area_original = np.prod(ffimg.shape[:2])
-                
+
         ffimg = scale_to_target(ffimg[:, :, slice])
         slice_area = np.prod(ffimg.shape)
         
         if ll=='calf': labels = labels_calf_STANDARD 
         elif ll=='thigh': labels = labels_thigh_STANDARD 
         elif ll=='hand': labels = labels_hand_STANDARD 
+        elif ll=='foot': labels = labels_foot_STANDARD
         else:
             raise Exception(f'Invalid anatomical location {ll}')
 
@@ -576,6 +676,10 @@ def read_and_normalize_data(DIRS, test=False):
                         valid_values = [0, 19, 20, 22, 23]
                         valid_values1 = [0, 19, 20, 22, 23]
                         valid_values2 = [0, 19, 20, 22, 23]
+                    elif RUNTIME_PARAMS['al'] == 'foot':
+                        valid_values = [0, 1]
+                        valid_values1 = [0, 1]
+                        valid_values2 = [0, 1]
                         
                     ok=False
                     if noise_slice:
@@ -811,7 +915,7 @@ def print_scores(data, data_mask, preds, DIRs):
                 if not os.path.exists(ref_filename):
                     ref_filename = os.path.join(DIR, 'ana/fatfraction/'+llshortdict[ll]+'/fat.nii.gz')
 
-            nibobj = nib.load(ref_filename)
+            nibobj, maskimg = load_and_reorient(ref_filename)
             shape = nibobj.get_fdata().shape[0:3]
             maskimg = np.zeros(shape, dtype=dtype)
 
@@ -886,7 +990,7 @@ def augmentData(batch_images, mask_images, DIR):
                 plt.savefig('__DEBUG/__sample_augment_crop_and_resize.png')
                 plt.close(fig)
 
-        TAG_augment_random_affine = False
+        TAG_augment_random_affine = True
         if TAG_augment_random_affine and np.random.randint(0, 2) == 0:
             if DEBUG or 1:
                 fig = plt.figure()
@@ -973,6 +1077,9 @@ def train(train_DIRS, BREAK_OUT_AFTER_FIRST_FOLD):
         print('batch_size: %d' % (RUNTIME_PARAMS['batch_size']))
 
         if RUNTIME_PARAMS['multiclass']:
+            make_mask_sideagnostic(y_train_this)
+            make_mask_sideagnostic(y_valid_this)
+
             y_train_this = torch.nn.functional.one_hot(torch.LongTensor(
                 np.squeeze(y_train_this, axis=3)), RUNTIME_PARAMS['classes'])
             y_valid_this = torch.nn.functional.one_hot(torch.LongTensor(
@@ -1250,6 +1357,7 @@ def main(al, inputdir, modalities, multiclass, widget):
         if RUNTIME_PARAMS['al'] == 'calf': RUNTIME_PARAMS['classes'] = 17+1
         elif RUNTIME_PARAMS['al'] == 'thigh': RUNTIME_PARAMS['classes'] = 31+1
         elif RUNTIME_PARAMS['al'] == 'hand': RUNTIME_PARAMS['classes'] = 23+1
+        elif RUNTIME_PARAMS['al'] == 'foot': RUNTIME_PARAMS['classes'] = 1+1
         else:
             raise Exception('Unsupported anatomical location '+RUNTIME_PARAMS['al'])
     else:
@@ -1269,8 +1377,9 @@ def main(al, inputdir, modalities, multiclass, widget):
 
         DIRS = []
         if RUNTIME_PARAMS['al'] == 'hand': DATA_DIRS = ['brcalskd-hand']
+        elif RUNTIME_PARAMS['al'] == 'foot': DATA_DIRS = ['seg_data_mdacmt_foot']
         else:
-            DATA_DIRS = ['arimoclomol','mdacmt','alscs','poems','dhmn','brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6']
+            DATA_DIRS = ['arimoclomol','mdacmt','alscs','poems','dhmn','brcalskd', 'hypopp', 'ibmcmt_p1', 'ibmcmt_p2', 'ibmcmt_p3', 'ibmcmt_p4', 'ibmcmt_p5', 'ibmcmt_p6','cmtiowa','cmtiowa_3d']
         
         for DATA_DIR in DATA_DIRS:
             for de in glob.glob(os.path.join('data/'+DATA_DIR, '*')):
@@ -1302,6 +1411,8 @@ def main(al, inputdir, modalities, multiclass, widget):
                     files = glob.glob(os.path.join(de, 'roi/?ixon*345_'+llshortdict[ll]+'_*.nii.gz'))
                 if len(files) == 0:
                     files = glob.glob(os.path.join(de, 'roi/'+ll+'_?ixon*345_*.nii.gz'))
+                if len(files) == 0:
+                    files = glob.glob(os.path.join(de, ll+'_?ixon*345_*.nii.gz'))
                 if len(files) == 0:
                     files = glob.glob(os.path.join(de, 'roi/'+llshortdict[ll]+'_?ixon*345_*.nii.gz'))
                 if len(files) == 0:
@@ -1403,6 +1514,7 @@ def main(al, inputdir, modalities, multiclass, widget):
                 'thigh^data/arimoclomol/nhnn_020-029',
                 
                 'hand^data/brcalskd-hand/BRCALSKD_026B',
+                'foot^data/seg_data_mdacmt_foot/iowa_068a'
             ]
             print('Before cases_to_exclude_for_unseen_validation',len(train_DIRS))
             for DIR in cases_to_exclude_for_unseen_validation:
@@ -1476,11 +1588,14 @@ def main(al, inputdir, modalities, multiclass, widget):
         print('Running time: {} second(s)'.format(round(time.time() - start_time, 1)))
 
 if __name__ == '__main__':
+    RUNTIME_PARAMS['ncpus'] = min(4, max(1, multiprocessing.cpu_count() // 2))
+    
     parser = argparse.ArgumentParser(APPID)
     parser.add_argument('-al', type=str, help='anatomical location (one of %s)'%(', '.join(llshortdict.keys())))
     parser.add_argument('-inputdir', type=str, help='input directory')
     parser.add_argument('-modalities', type=str, help='input modalities (one of %s)'%(', '.join(available_modalities)))
     parser.add_argument('--pth', type=float, help='Mask binarisation threshold (default: 0.5)', default=0.5)
+    parser.add_argument('--ncpus', type=int, help=f'Number of CPUs (threads) to use (default: {RUNTIME_PARAMS["ncpus"]})', default=RUNTIME_PARAMS['ncpus'])
     parser.add_argument('--wholemuscle', action="store_true", help='whole muscle segmentation (default: individual muscle segmentation)')
     parser.add_argument('--overwrite', action="store_true", help='overwrite existing segmentations (if present)')
     parser.add_argument('--fastmode', action="store_true", help='fast inference mode (may increase memory usage)')
@@ -1489,6 +1604,7 @@ if __name__ == '__main__':
     parser.add_argument('--version', action='version', version=__version__)
     args = parser.parse_args()
     
+    RUNTIME_PARAMS['ncpus'] = args.ncpus
     RUNTIME_PARAMS['selftest'] = args.selftest
     RUNTIME_PARAMS['fastmode'] = args.fastmode
     RUNTIME_PARAMS['overwrite'] = args.overwrite
@@ -1511,6 +1627,11 @@ if __name__ == '__main__':
                 os.mkdir(os.path.join(INSTALL_DIR, '__DEBUG'))
 
     setup_environment(verbose = DEBUG)
-
-    main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
     
+    try:
+        main(args.al, args.inputdir, args.modalities, not args.wholemuscle, widget=None)
+    except Exception as ex:
+        raise ex
+    finally:
+        print('Cleaning up...')    
+        os.system('rm -rf mmseg_ll_temp_*.nii.gz')

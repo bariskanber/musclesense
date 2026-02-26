@@ -6,6 +6,11 @@ labels_hand_STANDARD = {
     23: {'name': 'Lumbricales',                'abbreviation': 'LC'},
 }
     
+labels_foot_STANDARD = {
+    0: {'name': 'Clear Label',                 'abbreviation': 'CLR'},
+    1: {'name': 'Foot muscle',                 'abbreviation': 'FM'},
+}
+    
 labels_thigh_STANDARD = {
     0: {'name': 'Clear Label',                 'abbreviation': 'CLR'},
     1: {'name': 'Right Rectus Femoris',        'abbreviation': 'RRF'},
@@ -24,7 +29,7 @@ labels_thigh_STANDARD = {
     23: {'name': 'Left Vastus Intermedius',    'abbreviation': 'LVI'},
     24: {'name': 'Left Vastus Lateralis',      'abbreviation': 'LVL'},
     25: {'name': 'Left Semimembranosus',       'abbreviation': 'LSM'},
-    26: {'name': 'Left Semitendinosus',        'abbreviation': 'LST'},
+    26: {'name': 'Left Semitendonosus',        'abbreviation': 'LST'},
     27: {'name': 'Left Biceps Femoris',        'abbreviation': 'LBF'},
     28: {'name': 'Left Adductor Magnus',       'abbreviation': 'LAM'},
     29: {'name': 'Left Sartorius',             'abbreviation': 'LS'},
@@ -51,5 +56,5 @@ labels_calf_STANDARD = {
 }
 
 labels_STANDARD = {'calf': labels_calf_STANDARD, 'thigh': labels_thigh_STANDARD, 
-    'hand': labels_hand_STANDARD}
+    'hand': labels_hand_STANDARD, 'foot': labels_foot_STANDARD}
 

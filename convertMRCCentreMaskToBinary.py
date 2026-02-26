@@ -11,6 +11,16 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
             raise Exception('Expected unique mask values were %s but are %s'%(expected_vals,actual_vals))
 
         maskimg[np.where(maskimg>0)]=1
+    elif ll=='foot':
+        assert(np.min(maskimg)==0)
+        assert(np.max(maskimg)<=2)
+
+        expected_vals=[0,2]
+        actual_vals=np.unique(maskimg)
+        if not np.array_equal(actual_vals,expected_vals):
+            raise Exception('Expected unique mask values were %s but are %s'%(expected_vals,actual_vals))
+
+        maskimg[np.where(maskimg>0)]=1
     elif ll=='calf' and ('brcalskd' in DIR or 'alscs' in DIR):
         assert(np.min(maskimg)==0)
         assert(np.max(maskimg)<=16)
@@ -58,7 +68,7 @@ def convertMRCCentreMaskToBinary(DIR,ll,maskimg):
         maskimg[np.where(maskimg==32)]=0 # Left Subcutaneous fat PL
 
         maskimg[np.where(maskimg>0)]=1
-    elif ll=='calf' and ('poems' in DIR or 'hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR):
+    elif ll=='calf' and ('poems' in DIR or 'hypopp' in DIR or 'ibmcmt_p' in DIR or 'mdacmt' in DIR or 'dhmn' in DIR or 'cmtiowa' in DIR):
         assert(np.min(maskimg)==0)
         
         if DIR.replace('data/','') in ['hypopp/019_a','hypopp/012_b','ibmcmt_p2/p2-042','ibmcmt_p2/p2-018','ibmcmt_p3/p3-044','ibmcmt_p3/p3-050','ibmcmt_p2/p2-030b','ibmcmt_p2/p2-008b']:

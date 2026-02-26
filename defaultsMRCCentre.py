@@ -29,8 +29,16 @@ def get_subject_id_from_DIR(DIR):
         
     if 'mdacmt' in DIR: 
         subject = os.path.basename(DIR) # e.g. iowa_066a
-        assert (len(subject) == 9)
+        assert len(subject) in [8,9], f'Unexpected subject name: {subject}, length: {len(subject)}'
         subject = 'mdacmt.'+subject[:8]
+        #print(subject)
+        return subject
+        
+    if 'cmtiowa' in DIR: 
+        subject = os.path.basename(DIR) # e.g. wsu-75520-0001-2
+        tokens = subject.split('-')
+        assert(len(tokens)>=3)
+        subject = f'cmtiowa.{tokens[0]}_{tokens[1]}_{tokens[2]}'
         #print(subject)
         return subject
         
